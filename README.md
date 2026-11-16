@@ -7,7 +7,7 @@ Rebuilt and patched automatically every month.
 ## Version info
 
 | Item | Value |
-|---|---|---|
+|---|---|
 | OS | Ubuntu 24.04 LTS (Noble Numbat) |
 | Base image | Canonical official `ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*` |
 | Architecture | x86_64 (amd64) |
@@ -41,7 +41,7 @@ Then: `ssh -i <your-key>.pem ubuntu@<public-ip>`
 ## What is hardened
 
 | Area | Highlights |
-|---|---|---|
+|---|---|
 | Filesystem | Unused filesystem modules disabled; `/tmp` and `/dev/shm` mounted `nodev,nosuid,noexec` |
 | Boot | AppArmor enabled in enforce mode; bootloader config permissions locked |
 | Kernel / network | ASLR, ptrace restriction, no IP forwarding/redirects/source routing, SYN cookies, martian logging |
