@@ -6,7 +6,7 @@ packer {
 }
 
 variable "region"        { default = "ap-south-1" }     # use us-east-1 for Marketplace ingestion
-variable "instance_type" { default = "t3.medium" }
+variable "instance_type" { default = "c7i.xlarge" }  # build box only (~₹15/hr); buyers pick their own size
 variable "arch"          { default = "amd64" }          # amd64 | arm64 (use t4g.medium for arm64)
 variable "product_name"  { default = "ubuntu-2404-cis-l2" }
 variable "version"       { default = "1.0.0" }
@@ -52,6 +52,8 @@ source "amazon-ebs" "ubuntu" {
     device_name           = "/dev/sda1"
     volume_size           = 10
     volume_type           = "gp3"
+    iops                  = 6000   # faster apt/AIDE init during build
+    throughput            = 500
     delete_on_termination = true
   }
 
@@ -89,7 +91,7 @@ build {
     playbook_file   = "ansible/site.yml"
     user            = "ubuntu"
     use_proxy       = false
-    pause_before    = "30s"
+    pause_before    = "5s"
     galaxy_file     = "ansible/requirements.yml"
     roles_path      = "ansible/roles"
     extra_arguments = [
@@ -98,7 +100,13 @@ build {
       "--extra-vars", "@ansible/cis-vars.yml",
       "--scp-extra-args", "'-O'"
     ]
-    ansible_env_vars = ["ANSIBLE_HOST_KEY_CHECKING=False"]
+    ansible_env_vars = [
+      "ANSIBLE_HOST_KEY_CHECKING=False",
+      "ANSIBLE_PIPELINING=True",                                   # ~3-5x fewer SSH round-trips
+      "ANSIBLE_SSH_ARGS=-o ControlMaster=auto -o ControlPersist=30m",
+      "ANSIBLE_CALLBACK_RESULT_FORMAT=yaml",
+      "ANSIBLE_DISPLAY_SKIPPED_HOSTS=False"                        # smaller logs
+    ]
   }
 
   # 3. Close gaps vs Qualys CIS Ubuntu 24.04 v1.0.0 policy
