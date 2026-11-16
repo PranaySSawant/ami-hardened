@@ -32,6 +32,15 @@ source "amazon-ebs" "ubuntu" {
 
   ami_name        = "${var.product_name}-${var.version}-${var.arch}-${local.ts}"
   ami_description = "Ubuntu 24.04 LTS hardened to CIS Level 1 + Level 2 Server (v1.0.0)"
+  # Dedicated build subnet (created by bootstrap/setup-aws.sh) – no default VPC needed
+  subnet_filter {
+    filters   = { "tag:Name" = "packer-build" }
+    most_free = true
+    random    = false
+  }
+  associate_public_ip_address               = true
+  temporary_security_group_source_public_ip = true
+
   ena_support     = true
   sriov_support   = true
   imds_support    = "v2.0"
