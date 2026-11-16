@@ -26,11 +26,14 @@ cat > /tmp/gh-trust.json <<EOF
  "Principal":{"Federated":"arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"},
  "Action":"sts:AssumeRoleWithWebIdentity",
  "Condition":{"StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com"},
-  "StringLike":{"token.actions.githubusercontent.com:sub":"repo:${REPO}:ref:refs/heads/main"}}}]}
+  "StringLike":{"token.actions.githubusercontent.com:sub":[
+   "repo:${REPO}:ref:refs/heads/main","repo:${REPO,,}:ref:refs/heads/main",
+   "repo:${REPO%%/*}@*/${REPO#*/}@*:ref:refs/heads/main"]}}}]}
 EOF
-aws iam create-role --role-name ami-release-github \
+aws iam create-role --role-name ami-release-github --max-session-duration 21600 \
   --assume-role-policy-document file:///tmp/gh-trust.json >/dev/null 2>&1 \
   || aws iam update-assume-role-policy --role-name ami-release-github --policy-document file:///tmp/gh-trust.json
+aws iam update-role --role-name ami-release-github --max-session-duration 21600
 
 cat > /tmp/gh-policy.json <<EOF
 {"Version":"2012-10-17","Statement":[
