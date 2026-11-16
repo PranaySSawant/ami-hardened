@@ -3,7 +3,7 @@
 # Verify names against roles/UBUNTU24-CIS/defaults/main.yml for the release you pin.
 
 ubtu24cis_level_1: true
-ubtu24cis_level_2: true   # Qualys CIS policy scans L1+L2; set false (and drop level2-server tag) for an L1-only product
+ubtu24cis_level_2: true   # L1+L2 Server profile; set false (and drop level2-server tag) for an L1-only product
 
 # Packer needs to stay connected while the role runs
 ubtu24cis_disruption_high: false

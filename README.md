@@ -1,66 +1,114 @@
-# Ubuntu 24.04 CIS L1+L2 – AWS Marketplace AMI
+# Hardened Ubuntu 24.04 LTS – CIS Benchmark AMI
 
-## Build
+A free, public Amazon Machine Image (AMI) of **Ubuntu 24.04 LTS** hardened to the
+**CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + Level 2 Server** profile.
+Rebuilt and patched automatically every month.
+
+## Version info
+
+| Item | Value |
+|---|---|
+| OS | Ubuntu 24.04 LTS (Noble Numbat) |
+| Base image | Canonical official `ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*` |
+| Architecture | x86_64 (amd64) |
+| Kernel | `linux-aws` (latest at build time) |
+| Hardening standard | CIS Benchmark for Ubuntu Linux 24.04 LTS **v1.0.0** |
+| Profile | Level 1 + Level 2 – Server (~700 controls) |
+| Region | `ap-south-1` (Mumbai) |
+| AMI name | `ubuntu-2404-cis-l2-<YYYY.MM.DD>-amd64-<timestamp>` |
+| Root volume | 10 GiB gp3, unencrypted (enable EBS encryption-by-default in your account if required) |
+| Boot / metadata | HVM, ENA, IMDSv2 required |
+| Release cadence | Monthly (5th of each month) – latest OS patches + CIS settings |
+| Default user | `ubuntu` (SSH key only) |
+
+## Find and launch
+
+**Console:** EC2 → AMIs → *Public images* → search `ubuntu-2404-cis-l2` (region ap-south-1) → pick the newest → **Launch instance from AMI**.
+
+**CLI:**
 ```bash
-# prereqs on build host: packer >= 1.10, ansible-core >= 2.15, AWS creds
-cd ubuntu2404-cis-ami
+AMI=$(aws ec2 describe-images --region ap-south-1 --owners 080369785465 \
+  --filters "Name=name,Values=ubuntu-2404-cis-l2-*" \
+  --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
+
+aws ec2 run-instances --region ap-south-1 --image-id "$AMI" \
+  --instance-type t3.micro --key-name <your-key> \
+  --security-group-ids <sg-allowing-22/tcp> \
+  --metadata-options HttpTokens=required
+```
+Then: `ssh -i <your-key>.pem ubuntu@<public-ip>`
+
+## What is hardened
+
+| Area | Highlights |
+|---|---|
+| Filesystem | Unused filesystem modules disabled; `/tmp` and `/dev/shm` mounted `nodev,nosuid,noexec` |
+| Boot | AppArmor enabled in enforce mode; bootloader config permissions locked |
+| Kernel / network | ASLR, ptrace restriction, no IP forwarding/redirects/source routing, SYN cookies, martian logging |
+| Firewall | `ufw` only; default deny in/out; inbound 22/tcp; outbound 53, 80, 123, 443 |
+| SSH | Key-only, no root login, strong ciphers/KEX/MACs only, idle timeout, `MaxAuthTries 4`, login banner |
+| Accounts / PAM | Password quality + history, `faillock` lockout, password aging, umask 027, 15-min shell timeout |
+| sudo | `use_pty`, sudo logging, auth timeout |
+| Logging & audit | `auditd` with CIS rule set, `journald` persistent + compressed, log file permissions |
+| Integrity | AIDE installed with daily check timer |
+| Time | `systemd-timesyncd` → Amazon Time Sync (169.254.169.123) |
+| Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included |
+
+## CIS exceptions (by design)
+
+| CIS | Recommendation | Why not applied |
+|---|---|---|
+| 1.1.2.3 – 1.1.2.7 | Separate partitions for `/home`, `/var`, `/var/tmp`, `/var/log`, `/var/log/audit` | Single-volume cloud image. Add EBS volumes and mount them if your policy requires it |
+| 1.4.1 | Bootloader password | Would break EC2 Serial Console and unattended recovery |
+| 5.1.4 | `AllowUsers` | Access controlled with `AllowGroups sshusers sudo` + `DenyUsers root` instead (CIS requires any one) |
+| 5.2.4 | Password for sudo | `ubuntu` is key-only with no password, so passwordless sudo is kept for that user only |
+| 6.1.3.6 | Remote log host | Environment-specific – point rsyslog/journald at your own log server |
+
+## Usage notes
+
+- **SSH users:** new users must be in group `sshusers` or `sudo` to log in: `sudo usermod -aG sshusers <user>`.
+- **Outbound traffic** is restricted to DNS, HTTP, HTTPS and NTP. Allow more with `sudo ufw allow out <port>/tcp`.
+- **`/tmp` is `noexec`** – some installers that run binaries from `/tmp` need `TMPDIR=/var/tmp`.
+- **IPv6 / multi-ENI:** `accept_ra=0` and strict `rp_filter=1` are set. For dual-stack or multiple ENIs, relax them in `/etc/sysctl.d/60-cis.conf` and `/etc/ufw/sysctl.conf`.
+- **Security group:** open only 22/tcp from your own IP.
+
+## Verify on an instance
+
+```bash
+sudo sshd -T | grep -Ei 'permitrootlogin|passwordauthentication|ciphers'
+sudo ufw status verbose
+findmnt /tmp /dev/shm
+sudo auditctl -s && sudo aa-status | head
+# Full CIS audit (goss-based):
+sudo apt-get install -y git && sudo git clone https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/cis-audit
+sudo /opt/cis-audit/run_audit.sh
+```
+
+## Build it yourself
+
+Requirements: Packer ≥ 1.10, ansible-core ≥ 2.15, AWS credentials, a public subnet tagged `Name=packer-build`
+(created by `bootstrap/setup-aws.sh` if your region has no default VPC).
+
+```bash
 ansible-galaxy install -r ansible/requirements.yml -p ansible/roles
 packer init .
-packer validate .
 packer build -var 'version=1.0.0' ubuntu2404-cis.pkr.hcl
-# arm64:
-packer build -var 'arch=arm64' -var 'instance_type=t4g.medium' ubuntu2404-cis.pkr.hcl
-```
-AMI ID -> `manifest.json`.
-
-## Verify before submitting
-```bash
-# launch test instance from new AMI, then on it:
-sudo apt-get install -y git ansible-core
-git clone https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/cis-audit
-sudo /opt/cis-audit/run_audit.sh            # goss-based CIS report
-sudo sshd -T | grep -Ei 'permitrootlogin|passwordauthentication'
-sudo ufw status verbose
-ls /root/.ssh /etc/ssh/ssh_host_* 2>&1      # host keys regenerated on boot = OK
-```
-Also run your Qualys / Inspector scan – Marketplace rejects AMIs with open critical/high CVEs.
-
-## Marketplace ingestion role (one-time)
-```bash
-cat > trust.json <<'EOF'
-{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
- "Principal":{"Service":"assets.marketplace.amazonaws.com"},
- "Action":"sts:AssumeRole"}]}
-EOF
-aws iam create-role --role-name AWSMarketplaceAmiIngestion \
-  --assume-role-policy-document file://trust.json
-aws iam attach-role-policy --role-name AWSMarketplaceAmiIngestion \
-  --policy-arn arn:aws:iam::aws:policy/AWSMarketplaceAmiIngestion
+# or build + make public in one step:
+./scripts/make-public-ami.sh ap-south-1 1.0.0
 ```
 
-## Submit
-1. Marketplace Management Portal → **Assets → Amazon Machine Image → Scan AMI** (self-service scan; fix any findings).
-2. **Products → Server → Create server product → Amazon Machine Image**.
-3. Add version: AMI ID, ingestion role ARN, OS user `ubuntu`, OS = Ubuntu 24.04, scanning port 22,
-   usage instructions, recommended instance type, security group (tcp/22).
-4. Publish as Limited first → test launch from the Marketplace listing → request Public.
+## How it is built
 
-## Qualys compliance scan (policy: CIS Ubuntu 24.04 v1.0.0 L1+L2)
-Launch a test instance from the AMI → install Qualys Cloud Agent (or authenticated scan) →
-run the policy → expected failures should be ONLY the exceptions below.
-Policy is locked; copy it and mark the exceptions to get a clean report for the listing.
-
-## Documented exceptions (Qualys seq / CID → put in listing usage notes)
-| Qualys | CIS | Reason |
+| Step | Tool | File |
 |---|---|---|
-| 1.40–1.57 (29044, 29055, 29058, 29062, 29066…) | 1.1.2.3–1.1.2.7 | Separate /home, /var, /var/tmp, /var/log, /var/log/audit partitions – single-root cloud image. Fixable later with extra EBS volumes baked into the AMI |
-| 1.70 (13271) | 1.4.1 | GRUB password breaks EC2 serial console / unattended recovery |
-| 5.6 (26880) | 5.1.4 | AllowUsers not set – AllowGroups/DenyUsers/DenyGroups used instead (CIS needs only one). Buyers add users to `sshusers` |
-| 5.35 (29136) | 5.2.4 | `ubuntu` has no password (key-only), so cloud-init NOPASSWD sudo is required |
-| 6.28/6.29 | 6.1.3.6 | Remote log host – buyer-specific |
+| Launch Canonical base image, full OS update | Packer (`amazon-ebs`) | `ubuntu2404-cis.pkr.hcl`, `scripts/01-prep.sh` |
+| CIS L1 + L2 remediation | Ansible + [ansible-lockdown/UBUNTU24-CIS](https://github.com/ansible-lockdown/UBUNTU24-CIS) | `ansible/site.yml`, `ansible/cis-vars.yml` |
+| Extra CIS settings (SSH crypto, `/tmp`, sysctl, TMOUT) | Bash | `scripts/50-cis-align.sh` |
+| Strip keys, logs, identity | Bash | `scripts/99-marketplace-cleanup.sh` |
+| Monthly build + publish | GitHub Actions (OIDC, no stored keys) | `.github/workflows/public-ami.yml` |
 
-## Buyer notes (put in usage instructions)
-- SSH: key only, user `ubuntu`; new SSH users must be in group `sshusers` or `sudo`.
-- /tmp and /dev/shm are `noexec`.
-- IPv6 `accept_ra=0` + strict `rp_filter=1`: for dual-stack or multi-ENI instances, relax in `/etc/sysctl.d/60-cis.conf` and `/etc/ufw/sysctl.conf`.
-- ufw default deny inbound; only 22/tcp open.
+## Disclaimer
+
+Built to align with the CIS Benchmark recommendations. This project is not affiliated with,
+endorsed by, or certified by the Center for Internet Security (CIS). Review the settings and test
+in your environment before production use. Provided as-is, without warranty.

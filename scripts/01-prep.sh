@@ -13,7 +13,7 @@ apt-get install -y python3 python3-apt acl unattended-upgrades amazon-ec2-utils
 # SSM agent (snap on Ubuntu AMIs) – keep, buyers expect it
 snap list amazon-ssm-agent >/dev/null 2>&1 || snap install amazon-ssm-agent --classic
 
-# Time sync: Qualys 2.85 = only ONE of timesyncd/chrony. Use timesyncd -> Amazon Time Sync.
+# Time sync (CIS 2.3.1.1): only ONE of timesyncd/chrony. Use timesyncd -> Amazon Time Sync.
 # AWS Ubuntu images ship chrony (conflicts with timesyncd) – installing timesyncd removes it
 apt-get install -y systemd-timesyncd
 apt-get purge -y chrony 2>/dev/null || true

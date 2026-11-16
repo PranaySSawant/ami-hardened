@@ -108,9 +108,9 @@ build {
     ]
   }
 
-  # 3. Close gaps vs Qualys CIS Ubuntu 24.04 v1.0.0 policy
+  # 3. Extra CIS Ubuntu 24.04 v1.0.0 settings (SSH crypto, /tmp, sysctl, TMOUT)
   provisioner "shell" {
-    script          = "scripts/50-qualys-cis-align.sh"
+    script          = "scripts/50-cis-align.sh"
     execute_command = "sudo -E bash '{{ .Path }}'"
   }
 
