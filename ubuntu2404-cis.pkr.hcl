@@ -52,8 +52,7 @@ source "amazon-ebs" "ubuntu" {
     device_name           = "/dev/sda1"
     volume_size           = 10
     volume_type           = "gp3"
-    iops                  = 5000   # max for 10 GiB gp3 (500 IOPS/GiB)
-    throughput            = 500
+    # gp3 baseline 3000 IOPS / 125 MB/s (no extra cost)
     delete_on_termination = true
   }
 
