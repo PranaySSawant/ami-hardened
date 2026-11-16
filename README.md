@@ -54,15 +54,91 @@ Then: `ssh -i <your-key>.pem ubuntu@<public-ip>`
 | Time | `systemd-timesyncd` → Amazon Time Sync (169.254.169.123) |
 | Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included |
 
-## CIS exceptions (by design)
+## CIS compliance score
 
-| CIS | Recommendation | Why not applied |
+Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + Level 2 Server**
+(ansible-lockdown UBUNTU24-CIS-Audit). Manual-only recommendations are not scored.
+
+| | Recommendations |
+|---|---|
+| Scored (automated) | 260 |
+| Intentionally not applied (below) | 21 |
+| Manual review – not scored | 7 |
+
+## Intentional failures (by design)
+
+These recommendations are **deliberately not applied** because they would break the image on AWS
+or cannot be decided for every user. Each one lists the reason and how to apply it yourself if your policy requires it.
+
+### 1. Separate partitions – 18 checks
+
+| CIS | Recommendation |
+|---|---|
+| 1.1.2.3.1 | Ensure separate partition exists for `/home` |
+| 1.1.2.3.2 | Ensure `nodev` option set on `/home` partition |
+| 1.1.2.3.3 | Ensure `nosuid` option set on `/home` partition |
+| 1.1.2.4.1 | Ensure separate partition exists for `/var` |
+| 1.1.2.4.2 | Ensure `nodev` option set on `/var` partition |
+| 1.1.2.4.3 | Ensure `nosuid` option set on `/var` partition |
+| 1.1.2.5.1 | Ensure separate partition exists for `/var/tmp` |
+| 1.1.2.5.2 | Ensure `nodev` option set on `/var/tmp` partition |
+| 1.1.2.5.3 | Ensure `nosuid` option set on `/var/tmp` partition |
+| 1.1.2.5.4 | Ensure `noexec` option set on `/var/tmp` partition |
+| 1.1.2.6.1 | Ensure separate partition exists for `/var/log` |
+| 1.1.2.6.2 | Ensure `nodev` option set on `/var/log` partition |
+| 1.1.2.6.3 | Ensure `nosuid` option set on `/var/log` partition |
+| 1.1.2.6.4 | Ensure `noexec` option set on `/var/log` partition |
+| 1.1.2.7.1 | Ensure separate partition exists for `/var/log/audit` |
+| 1.1.2.7.2 | Ensure `nodev` option set on `/var/log/audit` partition |
+| 1.1.2.7.3 | Ensure `nosuid` option set on `/var/log/audit` partition |
+| 1.1.2.7.4 | Ensure `noexec` option set on `/var/log/audit` partition |
+
+**Why:** Canonical's Ubuntu cloud image ships with a single root volume. Re-partitioning inside an AMI
+needs a custom disk layout, risks an unbootable image and prevents simply resizing the root volume at launch.
+The mount-option checks fail automatically because the partitions do not exist.
+**If you need it:** attach extra EBS volumes, mount them at these paths with `nodev,nosuid,noexec` in `/etc/fstab`.
+
+### 2. Bootloader password – 1 check
+
+| CIS | Recommendation |
+|---|---|
+| 1.4.1 | Ensure bootloader password is set |
+
+**Why:** a GRUB password prompts on the EC2 Serial Console and blocks unattended recovery / single-user boot.
+A password baked into a public image would also be identical for every user, which is insecure.
+**If you need it:** `grub-mkpasswd-pbkdf2`, add the superuser + hash to `/etc/grub.d/40_custom`, run `update-grub`.
+
+### 3. Password for privilege escalation – 1 check
+
+| CIS | Recommendation |
+|---|---|
+| 5.2.4 | Ensure users must provide password for privilege escalation |
+
+**Why:** the default `ubuntu` user logs in with an SSH key only and has no password (AWS standard),
+so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; the rule applies to all other users.
+**If you need it:** set a password for `ubuntu` and remove `NOPASSWD` from `/etc/sudoers.d/90-cloud-init-users`.
+
+### 4. squashfs kernel module – 1 check (Level 2)
+
+| CIS | Recommendation |
+|---|---|
+| 1.1.1.7 | Ensure squashfs kernel module is not available |
+
+**Why:** snaps are squashfs images. The **Amazon SSM Agent** is installed as a snap, so disabling squashfs
+would break Session Manager / Run Command on every instance.
+**If you need it:** remove all snaps (install SSM Agent from the `.deb`), then blacklist `squashfs`.
+
+### 5. Manual review – 7 checks (not scored)
+
+| CIS | Recommendation | Why manual |
 |---|---|---|
-| 1.1.2.3 – 1.1.2.7 | Separate partitions for `/home`, `/var`, `/var/tmp`, `/var/log`, `/var/log/audit` | Single-volume cloud image. Add EBS volumes and mount them if your policy requires it |
-| 1.4.1 | Bootloader password | Would break EC2 Serial Console and unattended recovery |
-| 5.1.4 | `AllowUsers` | Access controlled with `AllowGroups sshusers sudo` + `DenyUsers root` instead (CIS requires any one) |
-| 5.2.4 | Password for sudo | `ubuntu` is key-only with no password, so passwordless sudo is kept for that user only |
-| 6.1.3.6 | Remote log host | Environment-specific – point rsyslog/journald at your own log server |
+| 1.1.1.10 | Ensure unused filesystems kernel modules are not available | Depends on what filesystems your workload uses |
+| 1.2.1.1 | Ensure GPG keys are configured | Depends on which repositories you add |
+| 1.2.1.2 | Ensure package manager repositories are configured | Depends on your approved mirrors |
+| 2.1.22 | Ensure only approved services are listening on a network interface | Depends on the services you install |
+| 4.2.5 | Ensure ufw outbound connections are configured | Default allows 53/80/123/443 – adjust to your policy |
+| 6.1.1.2 | Ensure journald log file access is configured | Site-specific log access policy |
+| 7.1.13 | Ensure SUID and SGID files are reviewed | Requires review of your installed software |
 
 ## Usage notes
 
