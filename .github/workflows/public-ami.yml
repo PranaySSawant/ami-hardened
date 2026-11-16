@@ -9,8 +9,8 @@ on:
         description: "Build region"
         default: "ap-south-1"
       extra_regions:
-        description: "Space-separated regions to copy to"
-        default: "us-east-1"
+        description: "Space-separated regions to copy to (blank = none)"
+        default: ""
 
 permissions:
   id-token: write
@@ -37,4 +37,4 @@ jobs:
           bash scripts/make-public-ami.sh \
             "${{ github.event.inputs.region || 'ap-south-1' }}" \
             "$(date -u +%Y.%m.%d)" \
-            ${{ github.event.inputs.extra_regions || 'us-east-1' }}
+            ${{ github.event.inputs.extra_regions }}
