@@ -7,7 +7,7 @@ Rebuilt and patched automatically every month.
 ## Version info
 
 | Item | Value |
-|---|---|
+|---|---|---|
 | OS | Ubuntu 24.04 LTS (Noble Numbat) |
 | Base image | Canonical official `ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*` |
 | Architecture | x86_64 (amd64) |
@@ -41,7 +41,7 @@ Then: `ssh -i <your-key>.pem ubuntu@<public-ip>`
 ## What is hardened
 
 | Area | Highlights |
-|---|---|
+|---|---|---|
 | Filesystem | Unused filesystem modules disabled; `/tmp` and `/dev/shm` mounted `nodev,nosuid,noexec` |
 | Boot | AppArmor enabled in enforce mode; bootloader config permissions locked |
 | Kernel / network | ASLR, ptrace restriction, no IP forwarding/redirects/source routing, SYN cookies, martian logging |
@@ -60,7 +60,7 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 (ansible-lockdown UBUNTU24-CIS-Audit). Manual-only recommendations are not scored.
 
 | | Recommendations |
-|---|---|
+|---|---|---|
 | Scored (automated) | 260 |
 | Intentionally not applied (below) | 21 |
 | Manual review – not scored | 7 |
@@ -70,28 +70,31 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 These recommendations are **deliberately not applied** because they would break the image on AWS
 or cannot be decided for every user. Each one lists the reason and how to apply it yourself if your policy requires it.
 
+Control IDs are from the CIS Ubuntu 24.04 v1.0.0 (L1+L2) compliance policy used for scanning.
+Manual-review items are inactive in that policy and have no control ID.
+
 ### 1. Separate partitions – 18 checks
 
-| CIS | Recommendation |
-|---|---|
-| 1.1.2.3.1 | Ensure separate partition exists for `/home` |
-| 1.1.2.3.2 | Ensure `nodev` option set on `/home` partition |
-| 1.1.2.3.3 | Ensure `nosuid` option set on `/home` partition |
-| 1.1.2.4.1 | Ensure separate partition exists for `/var` |
-| 1.1.2.4.2 | Ensure `nodev` option set on `/var` partition |
-| 1.1.2.4.3 | Ensure `nosuid` option set on `/var` partition |
-| 1.1.2.5.1 | Ensure separate partition exists for `/var/tmp` |
-| 1.1.2.5.2 | Ensure `nodev` option set on `/var/tmp` partition |
-| 1.1.2.5.3 | Ensure `nosuid` option set on `/var/tmp` partition |
-| 1.1.2.5.4 | Ensure `noexec` option set on `/var/tmp` partition |
-| 1.1.2.6.1 | Ensure separate partition exists for `/var/log` |
-| 1.1.2.6.2 | Ensure `nodev` option set on `/var/log` partition |
-| 1.1.2.6.3 | Ensure `nosuid` option set on `/var/log` partition |
-| 1.1.2.6.4 | Ensure `noexec` option set on `/var/log` partition |
-| 1.1.2.7.1 | Ensure separate partition exists for `/var/log/audit` |
-| 1.1.2.7.2 | Ensure `nodev` option set on `/var/log/audit` partition |
-| 1.1.2.7.3 | Ensure `nosuid` option set on `/var/log/audit` partition |
-| 1.1.2.7.4 | Ensure `noexec` option set on `/var/log/audit` partition |
+| CIS | Recommendation | Control ID |
+|---|---|---|
+| 1.1.2.3.1 | Ensure separate partition exists for `/home` | 29044 |
+| 1.1.2.3.2 | Ensure `nodev` option set on `/home` partition | 29045 |
+| 1.1.2.3.3 | Ensure `nosuid` option set on `/home` partition | 29046 |
+| 1.1.2.4.1 | Ensure separate partition exists for `/var` | 29055 |
+| 1.1.2.4.2 | Ensure `nodev` option set on `/var` partition | – |
+| 1.1.2.4.3 | Ensure `nosuid` option set on `/var` partition | 29057 |
+| 1.1.2.5.1 | Ensure separate partition exists for `/var/tmp` | 29058 |
+| 1.1.2.5.2 | Ensure `nodev` option set on `/var/tmp` partition | 29059 |
+| 1.1.2.5.3 | Ensure `nosuid` option set on `/var/tmp` partition | 29060 |
+| 1.1.2.5.4 | Ensure `noexec` option set on `/var/tmp` partition | 29061 |
+| 1.1.2.6.1 | Ensure separate partition exists for `/var/log` | 29062 |
+| 1.1.2.6.2 | Ensure `nodev` option set on `/var/log` partition | 29063 |
+| 1.1.2.6.3 | Ensure `nosuid` option set on `/var/log` partition | 29064 |
+| 1.1.2.6.4 | Ensure `noexec` option set on `/var/log` partition | 29065 |
+| 1.1.2.7.1 | Ensure separate partition exists for `/var/log/audit` | 29066 |
+| 1.1.2.7.2 | Ensure `nodev` option set on `/var/log/audit` partition | 29067 |
+| 1.1.2.7.3 | Ensure `nosuid` option set on `/var/log/audit` partition | 29068 |
+| 1.1.2.7.4 | Ensure `noexec` option set on `/var/log/audit` partition | 29069 |
 
 **Why:** Canonical's Ubuntu cloud image ships with a single root volume. Re-partitioning inside an AMI
 needs a custom disk layout, risks an unbootable image and prevents simply resizing the root volume at launch.
@@ -100,9 +103,9 @@ The mount-option checks fail automatically because the partitions do not exist.
 
 ### 2. Bootloader password – 1 check
 
-| CIS | Recommendation |
-|---|---|
-| 1.4.1 | Ensure bootloader password is set |
+| CIS | Recommendation | Control ID |
+|---|---|---|
+| 1.4.1 | Ensure bootloader password is set | 13271 |
 
 **Why:** a GRUB password prompts on the EC2 Serial Console and blocks unattended recovery / single-user boot.
 A password baked into a public image would also be identical for every user, which is insecure.
@@ -110,9 +113,9 @@ A password baked into a public image would also be identical for every user, whi
 
 ### 3. Password for privilege escalation – 1 check
 
-| CIS | Recommendation |
-|---|---|
-| 5.2.4 | Ensure users must provide password for privilege escalation |
+| CIS | Recommendation | Control ID |
+|---|---|---|
+| 5.2.4 | Ensure users must provide password for privilege escalation | 29136 |
 
 **Why:** the default `ubuntu` user logs in with an SSH key only and has no password (AWS standard),
 so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; the rule applies to all other users.
@@ -120,9 +123,9 @@ so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; t
 
 ### 4. squashfs kernel module – 1 check (Level 2)
 
-| CIS | Recommendation |
-|---|---|
-| 1.1.1.7 | Ensure squashfs kernel module is not available |
+| CIS | Recommendation | Control ID |
+|---|---|---|
+| 1.1.1.7 | Ensure squashfs kernel module is not available | 28961, 29284, 29289 |
 
 **Why:** snaps are squashfs images. The **Amazon SSM Agent** is installed as a snap, so disabling squashfs
 would break Session Manager / Run Command on every instance.
