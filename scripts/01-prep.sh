@@ -17,12 +17,6 @@ snap list amazon-ssm-agent >/dev/null 2>&1 || snap install amazon-ssm-agent --cl
 # AWS Ubuntu images ship chrony (conflicts with timesyncd) – installing timesyncd removes it
 apt-get install -y systemd-timesyncd
 apt-get purge -y chrony 2>/dev/null || true
-mkdir -p /etc/systemd/timesyncd.conf.d
-cat > /etc/systemd/timesyncd.conf.d/60-aws.conf <<'EOF'
-[Time]
-NTP=169.254.169.123
-FallbackNTP=ntp.ubuntu.com
-EOF
 systemctl unmask systemd-timesyncd
 systemctl enable --now systemd-timesyncd
 

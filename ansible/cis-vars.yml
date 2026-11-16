@@ -5,8 +5,21 @@
 ubtu24cis_level_1: true
 ubtu24cis_level_2: true   # L1+L2 Server profile; set false (and drop level2-server tag) for an L1-only product
 
-# Packer needs to stay connected while the role runs
-ubtu24cis_disruption_high: false
+# PAM (faillock, pwhistory, nullok) + account hardening tasks are gated by this.
+# The connecting 'ubuntu' user is excluded from password-aging tasks by the role itself.
+ubtu24cis_disruption_high: true
+
+# Time sync: systemd-timesyncd -> Amazon Time Sync (fallback Ubuntu NTP)
+ubtu24cis_time_sync_tool: "systemd-timesyncd"
+ubtu24cis_time_pool:
+  - name: 169.254.169.123
+    options: iburst
+ubtu24cis_time_servers:
+  - name: ntp.ubuntu.com
+    options: iburst
+
+# /tmp managed via /etc/fstab tmpfs entry (scripts/50-cis-align.sh)
+ubtu24cis_tmp_svc: false
 
 # Separate partitions (/tmp, /var, /var/log, /var/log/audit, /home, /var/tmp)
 # can't be created on Canonical's single-root AMI -> documented exceptions.

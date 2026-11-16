@@ -47,30 +47,70 @@ chmod 600 /etc/ssh/sshd_config
 sshd -t
 
 # ---------- /tmp and /dev/shm (CIS 1.1.2.1.x, 1.1.2.2.x) ----------
-cat > /etc/systemd/system/tmp.mount <<'EOF'
-[Unit]
-Description=Temporary Directory /tmp
-ConditionPathIsSymbolicLink=!/tmp
-DefaultDependencies=no
-Conflicts=umount.target
-Before=local-fs.target umount.target
-After=swap.target
-
-[Mount]
-What=tmpfs
-Where=/tmp
-Type=tmpfs
-Options=mode=1777,strictatime,nosuid,nodev,noexec,size=50%
-
-[Install]
-WantedBy=local-fs.target
-EOF
-systemctl daemon-reload
-systemctl unmask tmp.mount
-systemctl enable tmp.mount          # active from first boot
+# /tmp as tmpfs via fstab (CIS 1.1.2.1.1-4); remove any tmp.mount unit to avoid conflicts
+systemctl disable tmp.mount 2>/dev/null || true
+rm -f /etc/systemd/system/tmp.mount
+sed -i -E '\#^\S+\s+/tmp\s#d' /etc/fstab
+echo 'tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime,size=50%,mode=1777 0 0' >> /etc/fstab
 
 grep -qE '^\S+\s+/dev/shm\s' /etc/fstab || \
   echo 'tmpfs /dev/shm tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0' >> /etc/fstab
+
+# ---------- sshd -T must work before first SSH login (scanners rely on it) ----------
+# Ubuntu 24.04 socket-activates ssh, so /run/sshd only exists after first connection.
+echo 'd /run/sshd 0755 root root -' > /etc/tmpfiles.d/sshd-privsep.conf
+
+# ---------- AppArmor: all profiles enforcing (CIS 1.3.1.4) ----------
+for f in $(grep -lE 'flags=\([^)]*complain' /etc/apparmor.d/* 2>/dev/null); do aa-enforce "$f" || true; done
+
+# ---------- Core dumps (CIS 1.5.3) ----------
+mkdir -p /etc/systemd
+if [ -f /etc/systemd/coredump.conf ]; then
+  sed -i -E '/^#?\s*(Storage|ProcessSizeMax)=/d' /etc/systemd/coredump.conf
+  grep -q '^\[Coredump\]' /etc/systemd/coredump.conf || echo '[Coredump]' >> /etc/systemd/coredump.conf
+  sed -i '/^\[Coredump\]/a Storage=none\nProcessSizeMax=0' /etc/systemd/coredump.conf
+else
+  printf '[Coredump]\nStorage=none\nProcessSizeMax=0\n' > /etc/systemd/coredump.conf
+fi
+grep -qE '^\*\s+hard\s+core\s+0' /etc/security/limits.conf /etc/security/limits.d/* 2>/dev/null || \
+  echo '* hard core 0' > /etc/security/limits.d/99-cis-core.conf
+
+# ---------- at restricted to authorized users (CIS 2.4.2.1) ----------
+rm -f /etc/at.deny
+touch /etc/at.allow && chown root:root /etc/at.allow && chmod 0640 /etc/at.allow
+
+# ---------- No LLMNR/mDNS listeners (fewer open ports, CIS 4.2.6) ----------
+mkdir -p /etc/systemd/resolved.conf.d
+printf '[Resolve]\nLLMNR=no\nMulticastDNS=no\n' > /etc/systemd/resolved.conf.d/90-cis.conf
+
+# ---------- Log file permissions, kept correct after boot (CIS 6.1.4.1) ----------
+cat > /usr/local/sbin/cis-logperms <<'LP'
+#!/bin/sh
+find -L /var/log -type f ! -path '/var/log/apt/*' \
+  ! \( -name 'lastlog*' -o -name 'wtmp*' -o -name 'btmp*' -o -name 'cloud-init.log*' -o -name 'localmessages*' -o -name '*.journal' -o -name '*.journal~' -o -name README \) \
+  -perm /0137 -exec chmod u-x,g-wx,o-rwx {} + 2>/dev/null
+find -L /var/log/apt -type f -perm /0133 -exec chmod u-x,go-wx {} + 2>/dev/null
+exit 0
+LP
+chmod 0750 /usr/local/sbin/cis-logperms
+cat > /etc/systemd/system/cis-logperms.service <<'U'
+[Unit]
+Description=Enforce CIS log file permissions
+After=multi-user.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cis-logperms
+U
+cat > /etc/systemd/system/cis-logperms.timer <<'U'
+[Unit]
+Description=Enforce CIS log file permissions (boot + hourly)
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1h
+[Install]
+WantedBy=timers.target
+U
+systemctl enable cis-logperms.timer
 
 # ---------- sysctl (CIS 1.5.x, 3.3.x) ----------
 # Written to BOTH sysctl.d and the IPT_SYSCTL file referenced in /etc/default/ufw (ufw re-applies it)
@@ -129,4 +169,5 @@ sed -ri 's/^\s*UMASK\s+.*/UMASK 027/' /etc/login.defs
 systemctl disable --now nftables 2>/dev/null || true
 systemctl mask nftables 2>/dev/null || true
 apt-get purge -y iptables-persistent 2>/dev/null || true
+ufw allow in 68/udp comment 'DHCP client'
 ufw --force enable

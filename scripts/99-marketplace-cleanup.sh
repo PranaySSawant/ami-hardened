@@ -35,6 +35,7 @@ journalctl --vacuum-time=1s || true
 find /var/log -type f -name "*.gz" -delete
 find /var/log -type f -name "*.[0-9]" -delete
 find /var/log -type f -exec truncate -s 0 {} \;
+/usr/local/sbin/cis-logperms
 
 # --- Per-instance identity ---
 truncate -s 0 /etc/machine-id

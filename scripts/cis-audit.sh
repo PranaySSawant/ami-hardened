@@ -55,7 +55,14 @@ git clone -q -b benchmark_v1.0.0 --depth 1 https://github.com/ansible-lockdown/U
 cd /opt/UBUNTU24-CIS-Audit
 # official launcher passes required host vars (uuid, os name/version) to goss
 # image uses systemd-timesyncd (CIS allows either); audit defaults assume chrony
-sed 's/^ubtu24cis_time_sync_tool: "chrony"/ubtu24cis_time_sync_tool: "systemd-timesyncd"/' vars/CIS.yml > /var/tmp/CIS-ami.yml
+python3 - <<'PYV'
+import yaml
+v=yaml.safe_load(open('vars/CIS.yml'))
+v['ubtu24cis_time_sync_tool']='systemd-timesyncd'
+v['ubtu24cis_time_pool']=[{'name':'169.254.169.123','options':'iburst'}]
+v['ubtu24cis_time_servers']=[{'name':'ntp.ubuntu.com','options':'iburst'}]
+yaml.safe_dump(v,open('/var/tmp/CIS-ami.yml','w'))
+PYV
 bash run_audit.sh -f json -v /var/tmp/CIS-ami.yml -o /var/tmp/cis.json > /var/tmp/cis.log 2>&1 || true
 tail -6 /var/tmp/cis.log
 python3 - <<'PY'
