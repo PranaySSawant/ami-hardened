@@ -49,7 +49,9 @@ chmod 755 /usr/local/bin/goss
 rm -rf /opt/cis-audit
 git clone -q -b benchmark_v1.0.0 --depth 1 https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/cis-audit
 cd /opt/cis-audit
-/usr/local/bin/goss -g goss.yml --vars vars/CIS.yml v --max-concurrent 20 -f json > /var/tmp/cis.json || true
+/usr/local/bin/goss --version
+/usr/local/bin/goss -g goss.yml --vars vars/CIS.yml v --max-concurrent 20 -f json > /var/tmp/cis.json 2>/var/tmp/cis.err || true
+echo "json bytes: $(wc -c </var/tmp/cis.json)"; tail -15 /var/tmp/cis.err
 python3 - <<'PY'
 import json,re,collections
 d=json.load(open('/var/tmp/cis.json'))
