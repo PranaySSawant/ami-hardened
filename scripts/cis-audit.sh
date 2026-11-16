@@ -44,8 +44,12 @@ CMD=$(cat <<'EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -q git >/dev/null
-curl -sL https://github.com/goss-org/goss/releases/latest/download/goss-linux-amd64 -o /usr/local/bin/goss
+URL=$(curl -s https://api.github.com/repos/goss-org/goss/releases/latest | grep -o 'https://[^"]*goss-linux-amd64"' | tr -d '"' | head -1)
+URL=${URL:-https://github.com/goss-org/goss/releases/download/v0.4.9/goss-linux-amd64}
+echo "goss url: $URL"
+curl -fsSL "$URL" -o /usr/local/bin/goss
 chmod 755 /usr/local/bin/goss
+/usr/local/bin/goss --version
 rm -rf /opt/UBUNTU24-CIS-Audit
 git clone -q -b benchmark_v1.0.0 --depth 1 https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/UBUNTU24-CIS-Audit
 cd /opt/UBUNTU24-CIS-Audit
