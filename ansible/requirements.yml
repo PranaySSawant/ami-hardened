@@ -1,0 +1,9 @@
+---
+roles:
+  - name: UBUNTU24-CIS
+    src: https://github.com/ansible-lockdown/UBUNTU24-CIS.git
+    scm: git
+    version: main   # pin to a release tag for reproducible builds
+collections:
+  - name: community.general
+  - name: ansible.posix

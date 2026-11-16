@@ -1,0 +1,55 @@
+name: Build & publish hardened AMI
+
+on:
+  schedule:
+    - cron: "30 3 5 * *"     # 5th of every month, 09:00 IST
+  workflow_dispatch:
+    inputs:
+      intent:
+        description: "VALIDATE (dry run) or APPLY"
+        default: "APPLY"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: ami-release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      AWS_REGION: us-east-1
+      PRODUCT_ID: ${{ secrets.PRODUCT_ID }}
+      INGESTION_ROLE_ARN: ${{ secrets.INGESTION_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-duration-seconds: 21600
+
+      - uses: hashicorp/setup-packer@main
+
+      - name: Install Ansible
+        run: pipx install --include-deps ansible-core && ansible-galaxy collection install community.general ansible.posix
+
+      - name: Version
+        id: v
+        run: echo "version=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Build AMI
+        run: |
+          ansible-galaxy install -r ansible/requirements.yml -p ansible/roles
+          packer init .
+          packer build -color=false -var "version=${{ steps.v.outputs.version }}" ubuntu2404-cis.pkr.hcl
+          AMI=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
+          echo "AMI=$AMI" >> "$GITHUB_ENV"
+          echo "Built $AMI"
+
+      - name: Publish new version to Marketplace
+        run: bash scripts/publish-version.sh "$AMI" "${{ steps.v.outputs.version }}" "${{ github.event.inputs.intent || 'APPLY' }}"

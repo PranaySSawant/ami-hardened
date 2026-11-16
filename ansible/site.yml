@@ -1,0 +1,23 @@
+---
+- name: CIS Level 1 hardening - Ubuntu 24.04
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: UBUNTU24-CIS
+
+  post_tasks:
+    # Safety net: never ship an AMI that blocks SSH
+    - name: Ensure ufw allows SSH
+      community.general.ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+      tags: [always]
+
+    - name: Ensure outbound + loopback allowed (cloud-init/SSM/IMDS)
+      ansible.builtin.shell: |
+        ufw default allow outgoing
+        ufw allow in on lo
+      changed_when: false
+      tags: [always]

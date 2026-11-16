@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+# Wait for cloud-init / unattended-upgrades to release apt locks
+cloud-init status --wait || true
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+
+apt-get update -y
+apt-get -o Dpkg::Options::="--force-confold" dist-upgrade -y
+apt-get install -y python3 python3-apt acl unattended-upgrades amazon-ec2-utils
+
+# SSM agent (snap on Ubuntu AMIs) – keep, buyers expect it
+snap list amazon-ssm-agent >/dev/null 2>&1 || snap install amazon-ssm-agent --classic
+
+# Time sync: Qualys 2.85 = only ONE of timesyncd/chrony. Use timesyncd -> Amazon Time Sync.
+apt-get purge -y chrony || true
+mkdir -p /etc/systemd/timesyncd.conf.d
+cat > /etc/systemd/timesyncd.conf.d/60-aws.conf <<'EOF'
+[Time]
+NTP=169.254.169.123
+FallbackNTP=ntp.ubuntu.com
+EOF
+systemctl unmask systemd-timesyncd
+systemctl enable --now systemd-timesyncd
+
+apt-get autoremove -y --purge

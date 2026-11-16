@@ -1,0 +1,22 @@
+---
+# Overrides for a cloud/Marketplace AMI.
+# Verify names against roles/UBUNTU24-CIS/defaults/main.yml for the release you pin.
+
+ubtu24cis_level_1: true
+ubtu24cis_level_2: true   # Qualys CIS policy scans L1+L2; set false (and drop level2-server tag) for an L1-only product
+
+# Packer needs to stay connected while the role runs
+ubtu24cis_disruption_high: false
+
+# Separate partitions (/tmp, /var, /var/log, /var/log/audit, /home, /var/tmp)
+# can't be created on Canonical's single-root AMI -> documented exceptions.
+# Mount-option rules for those paths are skipped automatically when the mount doesn't exist.
+
+# Bootloader password: would block EC2 serial console / unattended reboots
+ubtu24cis_rule_1_4_1: false
+
+# Firewall: use ufw (Ubuntu default)
+ubtu24cis_firewall_package: ufw
+
+# Don't run the goss audit during the build (run it separately on a test instance)
+run_audit: false
