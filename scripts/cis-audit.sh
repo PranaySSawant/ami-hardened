@@ -54,7 +54,9 @@ rm -rf /opt/UBUNTU24-CIS-Audit
 git clone -q -b benchmark_v1.0.0 --depth 1 https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/UBUNTU24-CIS-Audit
 cd /opt/UBUNTU24-CIS-Audit
 # official launcher passes required host vars (uuid, os name/version) to goss
-bash run_audit.sh -f json -o /var/tmp/cis.json > /var/tmp/cis.log 2>&1 || true
+# image uses systemd-timesyncd (CIS allows either); audit defaults assume chrony
+sed 's/^ubtu24cis_time_sync_tool: "chrony"/ubtu24cis_time_sync_tool: "systemd-timesyncd"/' vars/CIS.yml > /var/tmp/CIS-ami.yml
+bash run_audit.sh -f json -v /var/tmp/CIS-ami.yml -o /var/tmp/cis.json > /var/tmp/cis.log 2>&1 || true
 tail -6 /var/tmp/cis.log
 python3 - <<'PY'
 import json,re,collections
@@ -62,9 +64,10 @@ d=json.load(open('/var/tmp/cis.json'))
 fails=collections.OrderedDict()
 ctrl_all,ctrl_fail=set(),set()
 for r in d['results']:
-    t=(r.get('meta') or {}).get('title') or r.get('title') or ''
+    t=r.get('title') or ''
+    meta=r.get('meta') or {}
     m=re.match(r'\s*([0-9]+(?:\.[0-9]+)+)',t)
-    cid=m.group(1) if m else t[:40]
+    cid=str(meta.get('CIS_ID') or (m.group(1) if m else t[:40]))
     ctrl_all.add(cid)
     if not r.get('successful'):
         ctrl_fail.add(cid); fails.setdefault(cid,t.strip()[:90])
