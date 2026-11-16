@@ -52,7 +52,7 @@ source "amazon-ebs" "ubuntu" {
     device_name           = "/dev/sda1"
     volume_size           = 10
     volume_type           = "gp3"
-    iops                  = 6000   # faster apt/AIDE init during build
+    iops                  = 5000   # max for 10 GiB gp3 (500 IOPS/GiB)
     throughput            = 500
     delete_on_termination = true
   }
