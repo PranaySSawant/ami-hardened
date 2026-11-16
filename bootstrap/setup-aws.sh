@@ -40,7 +40,8 @@ cat > /tmp/gh-policy.json <<EOF
    "ec2:CreateTags","ec2:ModifyImageAttribute","ec2:ModifyInstanceAttribute",
    "ec2:CreateKeyPair","ec2:DeleteKeyPair","ec2:CreateSecurityGroup","ec2:DeleteSecurityGroup",
    "ec2:AuthorizeSecurityGroupIngress","ec2:GetPasswordData","ec2:CreateVolume","ec2:DeleteVolume",
-   "ec2:AttachVolume","ec2:DetachVolume"],"Resource":"*"},
+   "ec2:AttachVolume","ec2:DetachVolume","ec2:CopyImage",
+   "ec2:DisableImageBlockPublicAccess","ec2:GetImageBlockPublicAccessState"],"Resource":"*"},
  {"Sid":"Marketplace","Effect":"Allow","Action":[
    "aws-marketplace:StartChangeSet","aws-marketplace:DescribeChangeSet",
    "aws-marketplace:DescribeEntity","aws-marketplace:ListChangeSets"],"Resource":"*"},

@@ -5,7 +5,7 @@ packer {
   }
 }
 
-variable "region"        { default = "us-east-1" }      # build in us-east-1 for Marketplace ingestion
+variable "region"        { default = "ap-south-1" }     # use us-east-1 for Marketplace ingestion
 variable "instance_type" { default = "t3.medium" }
 variable "arch"          { default = "amd64" }          # amd64 | arm64 (use t4g.medium for arm64)
 variable "product_name"  { default = "ubuntu-2404-cis-l2" }

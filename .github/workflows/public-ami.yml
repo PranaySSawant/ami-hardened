@@ -1,0 +1,40 @@
+name: Build & publish PUBLIC community AMI
+
+on:
+  schedule:
+    - cron: "30 3 5 * *"     # 5th of every month, 09:00 IST
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Build region"
+        default: "ap-south-1"
+      extra_regions:
+        description: "Space-separated regions to copy to"
+        default: "us-east-1"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: public-ami
+
+jobs:
+  public-ami:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ github.event.inputs.region || 'ap-south-1' }}
+          role-duration-seconds: 18000
+      - uses: hashicorp/setup-packer@main
+      - name: Install Ansible
+        run: pipx install --include-deps ansible-core
+      - name: Build and make public
+        run: |
+          bash scripts/make-public-ami.sh \
+            "${{ github.event.inputs.region || 'ap-south-1' }}" \
+            "$(date -u +%Y.%m.%d)" \
+            ${{ github.event.inputs.extra_regions || 'us-east-1' }}

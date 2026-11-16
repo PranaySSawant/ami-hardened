@@ -1,8 +1,9 @@
 name: Build & publish hardened AMI
 
 on:
-  schedule:
-    - cron: "30 3 5 * *"     # 5th of every month, 09:00 IST
+  # Enable the schedule once the Marketplace product exists:
+  # schedule:
+  #   - cron: "30 3 5 * *"
   workflow_dispatch:
     inputs:
       intent:
@@ -46,7 +47,7 @@ jobs:
         run: |
           ansible-galaxy install -r ansible/requirements.yml -p ansible/roles
           packer init .
-          packer build -color=false -var "version=${{ steps.v.outputs.version }}" ubuntu2404-cis.pkr.hcl
+          packer build -color=false -var "region=us-east-1" -var "version=${{ steps.v.outputs.version }}" ubuntu2404-cis.pkr.hcl
           AMI=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
           echo "AMI=$AMI" >> "$GITHUB_ENV"
           echo "Built $AMI"
