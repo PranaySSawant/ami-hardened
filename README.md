@@ -72,41 +72,6 @@ Then: `ssh -i <your-key>.pem ubuntu@<public-ip>`
 - **IPv6 / multi-ENI:** `accept_ra=0` and strict `rp_filter=1` are set. For dual-stack or multiple ENIs, relax them in `/etc/sysctl.d/60-cis.conf` and `/etc/ufw/sysctl.conf`.
 - **Security group:** open only 22/tcp from your own IP.
 
-## Verify on an instance
-
-```bash
-sudo sshd -T | grep -Ei 'permitrootlogin|passwordauthentication|ciphers'
-sudo ufw status verbose
-findmnt /tmp /dev/shm
-sudo auditctl -s && sudo aa-status | head
-# Full CIS audit (goss-based):
-sudo apt-get install -y git && sudo git clone https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/cis-audit
-sudo /opt/cis-audit/run_audit.sh
-```
-
-## Build it yourself
-
-Requirements: Packer ≥ 1.10, ansible-core ≥ 2.15, AWS credentials, a public subnet tagged `Name=packer-build`
-(created by `bootstrap/setup-aws.sh` if your region has no default VPC).
-
-```bash
-ansible-galaxy install -r ansible/requirements.yml -p ansible/roles
-packer init .
-packer build -var 'version=1.0.0' ubuntu2404-cis.pkr.hcl
-# or build + make public in one step:
-./scripts/make-public-ami.sh ap-south-1 1.0.0
-```
-
-## How it is built
-
-| Step | Tool | File |
-|---|---|---|
-| Launch Canonical base image, full OS update | Packer (`amazon-ebs`) | `ubuntu2404-cis.pkr.hcl`, `scripts/01-prep.sh` |
-| CIS L1 + L2 remediation | Ansible + [ansible-lockdown/UBUNTU24-CIS](https://github.com/ansible-lockdown/UBUNTU24-CIS) | `ansible/site.yml`, `ansible/cis-vars.yml` |
-| Extra CIS settings (SSH crypto, `/tmp`, sysctl, TMOUT) | Bash | `scripts/50-cis-align.sh` |
-| Strip keys, logs, identity | Bash | `scripts/99-marketplace-cleanup.sh` |
-| Monthly build + publish | GitHub Actions (OIDC, no stored keys) | `.github/workflows/public-ami.yml` |
-
 ## Disclaimer
 
 Built to align with the CIS Benchmark recommendations. This project is not affiliated with,
