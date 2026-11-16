@@ -62,7 +62,9 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
+| **Passed** | **237 (91%)** |
 | Intentionally not applied (below) | 21 |
+| Open (being fixed) | 2 – 1.3.1.4 AppArmor complain-mode profiles, 6.1.4.1 log file permissions |
 | Manual review – not scored | 7 |
 
 ## Intentional failures (by design)
