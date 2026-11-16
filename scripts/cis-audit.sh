@@ -46,12 +46,12 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -q git >/dev/null
 curl -sL https://github.com/goss-org/goss/releases/latest/download/goss-linux-amd64 -o /usr/local/bin/goss
 chmod 755 /usr/local/bin/goss
-rm -rf /opt/cis-audit
-git clone -q -b benchmark_v1.0.0 --depth 1 https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/cis-audit
-cd /opt/cis-audit
-/usr/local/bin/goss --version
-/usr/local/bin/goss -g goss.yml --vars vars/CIS.yml v --max-concurrent 20 -f json > /var/tmp/cis.json 2>/var/tmp/cis.err || true
-echo "json bytes: $(wc -c </var/tmp/cis.json)"; tail -15 /var/tmp/cis.err
+rm -rf /opt/UBUNTU24-CIS-Audit
+git clone -q -b benchmark_v1.0.0 --depth 1 https://github.com/ansible-lockdown/UBUNTU24-CIS-Audit.git /opt/UBUNTU24-CIS-Audit
+cd /opt/UBUNTU24-CIS-Audit
+# official launcher passes required host vars (uuid, os name/version) to goss
+bash run_audit.sh -f json -o /var/tmp/cis.json > /var/tmp/cis.log 2>&1 || true
+tail -6 /var/tmp/cis.log
 python3 - <<'PY'
 import json,re,collections
 d=json.load(open('/var/tmp/cis.json'))
