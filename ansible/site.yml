@@ -15,9 +15,7 @@
         proto: tcp
       tags: [always]
 
-    - name: Ensure outbound + loopback allowed (cloud-init/SSM/IMDS)
-      ansible.builtin.shell: |
-        ufw default allow outgoing
-        ufw allow in on lo
+    - name: Ensure loopback allowed (outbound stays CIS default-deny + 53/80/123/443)
+      ansible.builtin.command: ufw allow in on lo
       changed_when: false
       tags: [always]

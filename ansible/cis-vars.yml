@@ -15,6 +15,13 @@ ubtu24cis_disruption_high: false
 # Bootloader password: would block EC2 serial console / unattended reboots
 ubtu24cis_rule_1_4_1: false
 
+# 5.2.4: 'ubuntu' is key-only (no password) so cloud-init NOPASSWD sudo must stay.
+# Excluding it skips the role's lock-out pre-check; rule still applies to all other users.
+ubtu24cis_sudoers_exclude_nopasswd_list:
+  - ubuntu
+  - ec2-user
+  - vagrant
+
 # Firewall: use ufw (Ubuntu default)
 ubtu24cis_firewall_package: ufw
 
