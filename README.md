@@ -60,7 +60,7 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 (ansible-lockdown UBUNTU24-CIS-Audit). Manual-only recommendations are not scored.
 
 | | Recommendations |
-|---|---|---|
+|---|---|
 | Scored (automated) | 260 |
 | Intentionally not applied (below) | 21 |
 | Manual review – not scored | 7 |
