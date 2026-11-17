@@ -122,7 +122,7 @@ chmod 0750 /usr/local/sbin/cis-logperms
 cat > /etc/systemd/system/cis-logperms.service <<'U'
 [Unit]
 Description=Enforce CIS log file permissions
-After=cloud-final.service snap.amazon-ssm-agent.amazon-ssm-agent.service
+After=cloud-final.service amazon-ssm-agent.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/cis-logperms

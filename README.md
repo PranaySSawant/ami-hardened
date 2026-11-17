@@ -75,7 +75,7 @@ sudo lvextend -r -L +10G /dev/cis/var
 | Logging & audit | `auditd` with CIS rule set, `journald` persistent + compressed, log file permissions |
 | Integrity | AIDE installed with daily check timer |
 | Time | `systemd-timesyncd` → Amazon Time Sync (169.254.169.123) |
-| Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included |
+| Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included (official `.deb`, not the snap) |
 
 ## CIS compliance score
 
@@ -85,9 +85,9 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
-| **Passed** | **256 (98.5%)** – audited on ami-035835dba6d4f6f4a, 2026-11-17 |
+| **Passed** | **256 (98.5%)** on ami-035835dba6d4f6f4a – 257 (98.8%) target after the 1.3.1.4 fix |
 | Intentionally not applied (below) | 3 |
-| Open – being fixed | 1 (1.3.1.4 Ensure all AppArmor profiles are enforcing) |
+| Open – fix in next build | 1 (1.3.1.4: SSM Agent snap ran under AppArmor complain profiles → switched to the `.deb`) |
 | Manual review – not scored | 7 |
 
 ## Intentional failures (by design)
@@ -124,9 +124,10 @@ so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; t
 |---|---|---|
 | 1.1.1.7 | Ensure squashfs kernel module is not available | 28961, 29284, 29289 |
 
-**Why:** snaps are squashfs images. The **Amazon SSM Agent** is installed as a snap, so disabling squashfs
-would break Session Manager / Run Command on every instance.
-**If you need it:** remove all snaps (install SSM Agent from the `.deb`), then blacklist `squashfs`.
+**Why:** snaps are squashfs images. `snapd` ships with Ubuntu and many tools (e.g. `aws-cli`, `certbot`) are
+installed as snaps, so disabling squashfs would silently break `snap install` for every user.
+(The SSM Agent in this image is the `.deb`, so it is not affected.)
+**If you need it:** `snap list` must be empty, then `printf 'install squashfs /bin/false\nblacklist squashfs\n' > /etc/modprobe.d/squashfs.conf`.
 
 ### 4. Manual review – 7 checks (not scored)
 
