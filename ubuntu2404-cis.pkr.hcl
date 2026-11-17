@@ -15,7 +15,10 @@ locals {
   ts = formatdate("YYYYMMDD-hhmm", timestamp())
 }
 
-source "amazon-ebs" "ubuntu" {
+# amazon-ebssurrogate: the AMI root is NOT the builder's disk but a second, freshly
+# partitioned 30 GB disk (/dev/sdf) that the build copies the hardened system onto.
+# This gives ONE disk with separate CIS partitions (scripts/96-single-disk.sh).
+source "amazon-ebssurrogate" "ubuntu" {
   region        = var.region
   instance_type = var.instance_type
   ssh_username  = "ubuntu"
@@ -45,21 +48,28 @@ source "amazon-ebs" "ubuntu" {
   sriov_support   = true
   imds_support    = "v2.0"
 
-  # Marketplace: keep root volume unencrypted; buyers can enable EBS encryption-by-default
-  encrypt_boot = false
+  ami_virtualization_type = "hvm"
+  ami_architecture        = "x86_64"
+  boot_mode               = "uefi-preferred"   # GRUB installed for both UEFI and legacy BIOS
 
+  # Builder disk (throw-away)
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
     volume_size           = 10
     volume_type           = "gp3"
-    # gp3 baseline 3000 IOPS / 125 MB/s (no extra cost)
     delete_on_termination = true
   }
-  # CIS 1.1.2.3-7: one 25 GB data volume, LVM-split into /var, /var/log,
-  # /var/log/audit, /var/tmp, /home (scripts/95-cis-partitions.sh)
+  # Target disk: becomes the AMI's single 30 GB root disk
   launch_block_device_mappings {
     device_name           = "/dev/sdf"
-    volume_size           = 25
+    volume_size           = 30
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+  ami_root_device {
+    source_device_name    = "/dev/sdf"
+    device_name           = "/dev/sda1"
+    volume_size           = 30
     volume_type           = "gp3"
     delete_on_termination = true
   }
@@ -80,7 +90,7 @@ source "amazon-ebs" "ubuntu" {
 }
 
 build {
-  sources = ["source.amazon-ebs.ubuntu"]
+  sources = ["source.amazon-ebssurrogate.ubuntu"]
 
   # 1. Patch fully + base packages
   provisioner "shell" {
@@ -128,9 +138,9 @@ build {
     execute_command = "sudo -E bash '{{ .Path }}'"
   }
 
-  # 5. CIS separate partitions – copy cleaned data onto extra EBS volumes (after cleanup)
+  # 5. Build the single 30 GB partitioned disk from the hardened, cleaned system
   provisioner "shell" {
-    script          = "scripts/95-cis-partitions.sh"
+    script          = "scripts/96-single-disk.sh"
     execute_command = "sudo -E bash '{{ .Path }}'"
   }
 
