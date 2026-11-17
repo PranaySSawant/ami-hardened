@@ -8,7 +8,7 @@ while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
 
 apt-get update -y
 apt-get -o Dpkg::Options::="--force-confold" dist-upgrade -y
-apt-get install -y python3 python3-apt acl unattended-upgrades amazon-ec2-utils
+apt-get install -y python3 python3-apt acl unattended-upgrades amazon-ec2-utils rsync lvm2
 
 # SSM agent (snap on Ubuntu AMIs) – keep, buyers expect it
 snap list amazon-ssm-agent >/dev/null 2>&1 || snap install amazon-ssm-agent --classic

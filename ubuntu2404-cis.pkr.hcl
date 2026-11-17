@@ -55,33 +55,11 @@ source "amazon-ebs" "ubuntu" {
     # gp3 baseline 3000 IOPS / 125 MB/s (no extra cost)
     delete_on_termination = true
   }
-  launch_block_device_mappings {   # CIS 1.1.2.x: /var
+  # CIS 1.1.2.3-7: one 25 GB data volume, LVM-split into /var, /var/log,
+  # /var/log/audit, /var/tmp, /home (scripts/95-cis-partitions.sh)
+  launch_block_device_mappings {
     device_name           = "/dev/sdf"
-    volume_size           = 4
-    volume_type           = "gp3"
-    delete_on_termination = true
-  }
-  launch_block_device_mappings {   # CIS 1.1.2.x: /var/log
-    device_name           = "/dev/sdg"
-    volume_size           = 2
-    volume_type           = "gp3"
-    delete_on_termination = true
-  }
-  launch_block_device_mappings {   # CIS 1.1.2.x: /var/log/audit
-    device_name           = "/dev/sdh"
-    volume_size           = 1
-    volume_type           = "gp3"
-    delete_on_termination = true
-  }
-  launch_block_device_mappings {   # CIS 1.1.2.x: /var/tmp
-    device_name           = "/dev/sdi"
-    volume_size           = 1
-    volume_type           = "gp3"
-    delete_on_termination = true
-  }
-  launch_block_device_mappings {   # CIS 1.1.2.x: /home
-    device_name           = "/dev/sdj"
-    volume_size           = 1
+    volume_size           = 25
     volume_type           = "gp3"
     delete_on_termination = true
   }
