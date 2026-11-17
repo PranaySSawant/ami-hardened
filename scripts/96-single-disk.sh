@@ -30,7 +30,7 @@ part() { case "$DISK" in *nvme*) echo "${DISK}p$1" ;; *) echo "${DISK}$1" ;; esa
 ROOTSRC=$(findmnt -no SOURCE /)
 case "$ROOTSRC" in "$DISK"*) echo "ERROR: target $DISK is the running root" >&2; exit 1 ;; esac
 
-for b in sgdisk mkfs.vfat lvcreate rsync grub-install; do command -v $b >/dev/null || { echo "missing $b"; exit 1; }; done
+for b in sgdisk mkfs.vfat lvcreate tar grub-install; do command -v $b >/dev/null || { echo "missing $b"; exit 1; }; done
 
 VG=cis
 LVS=$(cat <<'EOF'
@@ -82,10 +82,12 @@ mount "$(part 15)"    $T/boot/efi
 
 # ---------- 3. Copy the hardened system ----------
 # -x: stay on the builder root fs (skips /proc /sys /dev /run /boot/efi and /mnt/target)
-rsync -aAXHx --numeric-ids --exclude=/mnt/target --exclude=/lost+found / $T/
+# (tar, not rsync: CIS 2.1.13 removes the rsync package)
+tarx() { tar --numeric-owner --xattrs "--xattrs-include=*" --acls "$@"; }
+( cd / && tarx --one-file-system --exclude=./mnt/target --exclude=./lost+found --warning=no-file-changed --warning=no-file-ignored -cpf - . || [ $? -eq 1 ] ) | ( cd $T && tarx -xpf - )
 # Newer Canonical images may have a separate /boot partition -> fold it into /
-if mountpoint -q /boot; then rsync -aAXH --numeric-ids --exclude=/efi/ /boot/ $T/boot/; fi
-rsync -rlt /boot/efi/ $T/boot/efi/
+if mountpoint -q /boot; then ( cd /boot && tarx --one-file-system --exclude=./efi -cpf - . ) | ( cd $T/boot && tarx -xpf - ); fi
+cp -r /boot/efi/. $T/boot/efi/
 ls $T/boot/vmlinuz* >/dev/null
 chmod 1777 $T/tmp $T/var/tmp
 chmod 0750 $T/var/log/audit
