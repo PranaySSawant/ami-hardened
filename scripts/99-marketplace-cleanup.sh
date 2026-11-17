@@ -25,6 +25,18 @@ rm -f /root/.bash_history /home/*/.bash_history /root/.viminfo /home/*/.viminfo
 rm -rf /tmp/* /var/tmp/* 2>/dev/null || true
 
 # --- Package cache ---
+# Remove every kernel except the running (newest, patched) one. Old kernels left
+# behind by dist-upgrade are flagged by vulnerability scanners (Inspector etc.)
+RUNK=$(uname -r); RUNV=${RUNK%-aws}
+NEWEST=$(ls /boot/vmlinuz-[0-9]* | sed 's#.*/vmlinuz-##' | sort -V | tail -1)
+[ "$NEWEST" = "$RUNK" ] || { echo "running $RUNK is not the newest kernel ($NEWEST) - keeping all kernels"; RUNV=KEEPALL; }
+OLD=$(dpkg-query -W -f='${db:Status-Abbrev}${Package}\n' 'linux-image-[0-9]*' 'linux-modules-[0-9]*' \
+        'linux-modules-extra-[0-9]*' 'linux-headers-[0-9]*' 'linux-aws-headers-[0-9]*' \
+        'linux-aws-*-headers-[0-9]*' 'linux-tools-[0-9]*' 'linux-aws-*-tools-[0-9]*' 2>/dev/null \
+      | awk '/^ii /{print $2}' | grep -v -- "$RUNV" || true)
+[ "$RUNV" = KEEPALL ] && OLD=
+[ -n "$OLD" ] && DEBIAN_FRONTEND=noninteractive apt-get purge -y $OLD
+dpkg -l | awk '/^ii +linux-(image|modules)-[0-9]/{print $2}'
 apt-get autoremove -y --purge
 apt-get clean
 rm -rf /var/lib/apt/lists/*
