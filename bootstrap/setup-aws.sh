@@ -44,7 +44,9 @@ cat > /tmp/gh-policy.json <<EOF
    "ec2:CreateKeyPair","ec2:DeleteKeyPair","ec2:CreateSecurityGroup","ec2:DeleteSecurityGroup",
    "ec2:AuthorizeSecurityGroupIngress","ec2:GetPasswordData","ec2:CreateVolume","ec2:DeleteVolume",
    "ec2:AttachVolume","ec2:DetachVolume","ec2:CopyImage",
-   "ec2:DisableImageBlockPublicAccess","ec2:GetImageBlockPublicAccessState"],"Resource":"*"},
+   "ec2:DisableImageBlockPublicAccess","ec2:GetImageBlockPublicAccessState",
+   "ec2:CreateVpc","ec2:ModifyVpcAttribute","ec2:CreateSubnet","ec2:ModifySubnetAttribute",
+   "ec2:CreateInternetGateway","ec2:AttachInternetGateway","ec2:CreateRoute","ec2:ReplaceRoute"],"Resource":"*"},
  {"Sid":"Marketplace","Effect":"Allow","Action":[
    "aws-marketplace:StartChangeSet","aws-marketplace:DescribeChangeSet",
    "aws-marketplace:DescribeEntity","aws-marketplace:ListChangeSets"],"Resource":"*"},
@@ -55,27 +57,7 @@ aws iam put-role-policy --role-name ami-release-github --policy-name ami-release
   --policy-document file:///tmp/gh-policy.json
 
 # 4. Dedicated public build subnet (for accounts without a default VPC)
-BUILD_REGION="${BUILD_REGION:-ap-south-1}"
-if ! aws ec2 describe-subnets --region "$BUILD_REGION" --filters Name=tag:Name,Values=packer-build \
-     --query 'Subnets[0].SubnetId' --output text | grep -q subnet-; then
-  VPC=$(aws ec2 create-vpc --region "$BUILD_REGION" --cidr-block 10.99.0.0/24 \
-    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=packer-build}]' --query Vpc.VpcId --output text)
-  IGW=$(aws ec2 create-internet-gateway --region "$BUILD_REGION" \
-    --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=packer-build}]' \
-    --query InternetGateway.InternetGatewayId --output text)
-  aws ec2 attach-internet-gateway --region "$BUILD_REGION" --vpc-id "$VPC" --internet-gateway-id "$IGW"
-  SUB=$(aws ec2 create-subnet --region "$BUILD_REGION" --vpc-id "$VPC" --cidr-block 10.99.0.0/24 \
-    --availability-zone "${BUILD_REGION}a" \
-    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=packer-build}]' --query Subnet.SubnetId --output text)
-  aws ec2 modify-subnet-attribute --region "$BUILD_REGION" --subnet-id "$SUB" --map-public-ip-on-launch
-  RT=$(aws ec2 describe-route-tables --region "$BUILD_REGION" --filters Name=vpc-id,Values="$VPC" \
-    --query 'RouteTables[0].RouteTableId' --output text)
-  aws ec2 create-route --region "$BUILD_REGION" --route-table-id "$RT" \
-    --destination-cidr-block 0.0.0.0/0 --gateway-id "$IGW" >/dev/null
-  echo "Build subnet: $SUB ($VPC)"
-else
-  echo "packer-build subnet exists"
-fi
+bash "$(dirname "$0")/../scripts/ensure-build-network.sh" "${BUILD_REGION:-ap-south-1}"
 
 echo
 echo "Add these as GitHub repo secrets (Settings → Secrets and variables → Actions):"

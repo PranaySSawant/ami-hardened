@@ -10,6 +10,9 @@ cd "$(dirname "$0")/.."
 need() { command -v "$1" >/dev/null || { echo "Missing: $1"; exit 1; }; }
 need aws; need jq; need packer; need ansible-playbook
 
+echo "==> Checking build network in $REGION"
+bash scripts/ensure-build-network.sh "$REGION" >/dev/null
+
 echo "==> Building in $REGION (v$VERSION) – takes ~30–60 min"
 ansible-galaxy install -r ansible/requirements.yml -p ansible/roles --force
 ansible-galaxy collection install community.general ansible.posix

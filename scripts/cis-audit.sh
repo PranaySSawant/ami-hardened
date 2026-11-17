@@ -22,8 +22,7 @@ if ! aws iam get-instance-profile --instance-profile-name $ROLE >/dev/null 2>&1;
 fi
 
 # 2. Launch in the packer-build subnet (no inbound rules needed for SSM)
-SUBNET=$(aws ec2 describe-subnets --region "$REGION" --filters Name=tag:Name,Values=packer-build \
-  --query 'Subnets[0].SubnetId' --output text)
+SUBNET=$(bash "$(dirname "$0")/ensure-build-network.sh" "$REGION")
 IID=$(aws ec2 run-instances --region "$REGION" --image-id "$AMI" --instance-type t3.small \
   --subnet-id "$SUBNET" --iam-instance-profile Name=$ROLE \
   --metadata-options HttpTokens=required \
