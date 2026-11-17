@@ -87,6 +87,8 @@ for k in sorted(fails,key=lambda x:[int(n) if n.isdigit() else 0 for n in x.spli
 PY
 EOF
 )
+# DEBUG_CMD="..." runs that command instead of the audit (troubleshooting)
+[ -n "${DEBUG_CMD:-}" ] && CMD="$DEBUG_CMD"
 CID=$(aws ssm send-command --region "$REGION" --instance-ids "$IID" \
   --document-name AWS-RunShellScript --timeout-seconds 1800 \
   --parameters "$(jq -n --arg c "$CMD" '{commands:[$c]}')" \
