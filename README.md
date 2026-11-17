@@ -85,8 +85,9 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
-| **Passed** | 257 target – re-audit pending for the single-disk build |
+| **Passed** | **256 (98.5%)** – audited on ami-035835dba6d4f6f4a, 2026-11-17 |
 | Intentionally not applied (below) | 3 |
+| Open – being fixed | 1 (1.3.1.4 Ensure all AppArmor profiles are enforcing) |
 | Manual review – not scored | 7 |
 
 ## Intentional failures (by design)

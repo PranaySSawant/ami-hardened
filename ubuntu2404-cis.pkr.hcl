@@ -58,6 +58,7 @@ source "amazon-ebssurrogate" "ubuntu" {
     volume_size           = 10
     volume_type           = "gp3"
     delete_on_termination = true
+    omit_from_artifact    = true # never snapshot the throw-away builder disk
   }
   # Target disk: becomes the AMI's single 30 GB root disk
   launch_block_device_mappings {
