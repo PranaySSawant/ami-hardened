@@ -85,9 +85,8 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
-| **Passed** | **256 (98.5%)** on ami-035835dba6d4f6f4a – 257 (98.8%) target after the 1.3.1.4 fix |
+| **Passed** | **257 (98.8%)** – audited on ami-0b70f5b724dbf2b6d, 2026-11-17 |
 | Intentionally not applied (below) | 3 |
-| Open – fix in next build | 1 (1.3.1.4: SSM Agent snap ran under AppArmor complain profiles → switched to the `.deb`) |
 | Manual review – not scored | 7 |
 
 ## Intentional failures (by design)
