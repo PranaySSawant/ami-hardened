@@ -60,8 +60,34 @@ grep -qE '^\S+\s+/dev/shm\s' /etc/fstab || \
 # Ubuntu 24.04 socket-activates ssh, so /run/sshd only exists after first connection.
 echo 'd /run/sshd 0755 root root -' > /etc/tmpfiles.d/sshd-privsep.conf
 
-# ---------- AppArmor: all profiles enforcing (CIS 1.3.1.4) ----------
-for f in $(grep -lE 'flags=\([^)]*complain' /etc/apparmor.d/* 2>/dev/null); do aa-enforce "$f" || true; done
+# ---------- AppArmor: all profiles enforcing (CIS 1.3.1.4) – build time + every boot ----------
+cat > /usr/local/sbin/cis-apparmor-enforce <<'AA'
+#!/bin/sh
+# Put every loaded profile that is in complain mode into enforce mode
+aa-status --json 2>/dev/null | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+print("\n".join(k for k,v in d.get("profiles",{}).items() if v=="complain"))' | while IFS= read -r name; do
+  [ -n "$name" ] || continue
+  f=$(grep -rlsF -- "$name" /etc/apparmor.d /var/lib/snapd/apparmor/profiles 2>/dev/null | grep -v '/abstractions/\|/tunables/' | head -1)
+  [ -n "$f" ] && aa-enforce "$f" >/dev/null 2>&1 || true
+done
+for f in $(grep -lsE 'flags=\([^)]*complain' /etc/apparmor.d/* 2>/dev/null); do aa-enforce "$f" >/dev/null 2>&1 || true; done
+exit 0
+AA
+chmod 0750 /usr/local/sbin/cis-apparmor-enforce
+cat > /etc/systemd/system/cis-apparmor-enforce.service <<'U'
+[Unit]
+Description=Enforce all AppArmor profiles (CIS 1.3.1.4)
+After=apparmor.service snapd.apparmor.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cis-apparmor-enforce
+[Install]
+WantedBy=multi-user.target
+U
+systemctl enable cis-apparmor-enforce.service
+/usr/local/sbin/cis-apparmor-enforce
 
 # ---------- Core dumps (CIS 1.5.3) ----------
 mkdir -p /etc/systemd
@@ -96,21 +122,23 @@ chmod 0750 /usr/local/sbin/cis-logperms
 cat > /etc/systemd/system/cis-logperms.service <<'U'
 [Unit]
 Description=Enforce CIS log file permissions
-After=multi-user.target
+After=cloud-final.service snap.amazon-ssm-agent.amazon-ssm-agent.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/cis-logperms
+[Install]
+WantedBy=multi-user.target
 U
 cat > /etc/systemd/system/cis-logperms.timer <<'U'
 [Unit]
 Description=Enforce CIS log file permissions (boot + hourly)
 [Timer]
-OnBootSec=3min
-OnUnitActiveSec=1h
+OnBootSec=1min
+OnUnitActiveSec=10min
 [Install]
 WantedBy=timers.target
 U
-systemctl enable cis-logperms.timer
+systemctl enable cis-logperms.timer cis-logperms.service
 
 # ---------- sysctl (CIS 1.5.x, 3.3.x) ----------
 # Written to BOTH sysctl.d and the IPT_SYSCTL file referenced in /etc/default/ufw (ufw re-applies it)

@@ -55,6 +55,36 @@ source "amazon-ebs" "ubuntu" {
     # gp3 baseline 3000 IOPS / 125 MB/s (no extra cost)
     delete_on_termination = true
   }
+  launch_block_device_mappings {   # CIS 1.1.2.x: /var
+    device_name           = "/dev/sdf"
+    volume_size           = 4
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+  launch_block_device_mappings {   # CIS 1.1.2.x: /var/log
+    device_name           = "/dev/sdg"
+    volume_size           = 2
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+  launch_block_device_mappings {   # CIS 1.1.2.x: /var/log/audit
+    device_name           = "/dev/sdh"
+    volume_size           = 1
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+  launch_block_device_mappings {   # CIS 1.1.2.x: /var/tmp
+    device_name           = "/dev/sdi"
+    volume_size           = 1
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+  launch_block_device_mappings {   # CIS 1.1.2.x: /home
+    device_name           = "/dev/sdj"
+    volume_size           = 1
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
 
   metadata_options {
     http_tokens                 = "required"
@@ -117,6 +147,12 @@ build {
   # 4. Marketplace hygiene (MUST be last)
   provisioner "shell" {
     script          = "scripts/99-marketplace-cleanup.sh"
+    execute_command = "sudo -E bash '{{ .Path }}'"
+  }
+
+  # 5. CIS separate partitions – copy cleaned data onto extra EBS volumes (after cleanup)
+  provisioner "shell" {
+    script          = "scripts/95-cis-partitions.sh"
     execute_command = "sudo -E bash '{{ .Path }}'"
   }
 
