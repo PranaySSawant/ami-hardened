@@ -136,10 +136,15 @@ grep -q "$ROOT_UUID" $T/boot/grub/grub.cfg
 grep -E "GRUB_FORCE_PARTUUID" $T/etc/default/grub.d/40-force-partuuid.cfg 2>/dev/null || true
 
 # ---------- 6. Unmount ----------
-for d in run sys proc dev/pts dev; do umount $T/$d; done
+# kill anything still running inside the chroot (only processes whose root is $T)
+for p in /proc/[0-9]*; do
+  [ "$(readlink $p/root 2>/dev/null)" = "$T" ] && kill -9 "${p#/proc/}" 2>/dev/null || true
+done
 sync
-umount $T/boot/efi $T/home $T/var/tmp $T/var/log/audit $T/var/log $T/var $T
-vgchange -an "$VG"
+# recursive unmount (bind mounts like /sys can carry sub-mounts, e.g. efivarfs)
+for i in 1 2 3 4 5; do umount -R $T 2>/dev/null && break; sleep 3; done
+if mountpoint -q $T; then grep " $T" /proc/mounts || true; umount -lR $T; sleep 5; fi
+for i in 1 2 3 4 5; do vgchange -an "$VG" && break; sleep 3; done
 rmdir $T
 lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL "$DISK"
 echo "single-disk image ready on $DISK"
