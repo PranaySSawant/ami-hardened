@@ -16,7 +16,7 @@ Rebuilt and patched automatically every month.
 | Profile | Level 1 + Level 2 – Server (~700 controls) |
 | Region | `ap-south-1` (Mumbai) |
 | AMI name | `ubuntu-2404-cis-l2-<YYYY.MM.DD>-amd64-<timestamp>` |
-| Root volume | 10 GiB gp3, unencrypted (enable EBS encryption-by-default in your account if required) |
+| Disk | **One 30 GiB gp3 disk** with separate CIS partitions (see *Disk layout*) |
 | Boot / metadata | HVM, ENA, IMDSv2 required |
 | Release cadence | Monthly (5th of each month) – latest OS patches + CIS settings |
 | Default user | `ubuntu` (SSH key only) |
@@ -37,6 +37,29 @@ aws ec2 run-instances --region ap-south-1 --image-id "$AMI" \
   --metadata-options HttpTokens=required
 ```
 Then: `ssh -i <your-key>.pem ubuntu@<public-ip>`
+
+## Disk layout
+
+One 30 GiB disk (GPT). `/var`, `/var/log`, `/var/log/audit`, `/var/tmp` and `/home` are separate
+LVM volumes so they can carry the CIS mount options (CIS 1.1.2.3 – 1.1.2.7).
+
+| Partition | Size | Mount | Options |
+|---|---|---|---|
+| p14 | 4 MiB | BIOS boot (legacy GRUB) | – |
+| p15 | 106 MiB | `/boot/efi` | `umask=0077` |
+| p1 | 10 GiB | `/` | `errors=remount-ro` |
+| p2 → LV `cis/var` | 8 GiB | `/var` | `nodev,nosuid` |
+| p2 → LV `cis/varlog` | 4 GiB | `/var/log` | `nodev,nosuid,noexec` |
+| p2 → LV `cis/audit` | 2 GiB | `/var/log/audit` | `nodev,nosuid,noexec` |
+| p2 → LV `cis/vartmp` | 2 GiB | `/var/tmp` | `nodev,nosuid,noexec` |
+| p2 → LV `cis/home` | 3 GiB | `/home` | `nodev,nosuid` |
+| tmpfs | 50% RAM | `/tmp`, `/dev/shm` | `nodev,nosuid,noexec` |
+
+**Grow a volume** (e.g. `/var` +10 GiB): increase the EBS volume size in the console, then
+```bash
+sudo growpart /dev/nvme0n1 2 && sudo pvresize /dev/nvme0n1p2
+sudo lvextend -r -L +10G /dev/cis/var
+```
 
 ## What is hardened
 
@@ -62,9 +85,8 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
-| **Passed** | **237 (91%)** |
-| Intentionally not applied (below) | 21 |
-| Open (being fixed) | 2 – 1.3.1.4 AppArmor complain-mode profiles, 6.1.4.1 log file permissions |
+| **Passed** | 257 target – re-audit pending for the single-disk build |
+| Intentionally not applied (below) | 3 |
 | Manual review – not scored | 7 |
 
 ## Intentional failures (by design)
@@ -75,35 +97,7 @@ or cannot be decided for every user. Each one lists the reason and how to apply 
 Control IDs are from the CIS Ubuntu 24.04 v1.0.0 (L1+L2) compliance policy used for scanning.
 Manual-review items are inactive in that policy and have no control ID.
 
-### 1. Separate partitions – 18 checks
-
-| CIS | Recommendation | Control ID |
-|---|---|---|
-| 1.1.2.3.1 | Ensure separate partition exists for `/home` | 29044 |
-| 1.1.2.3.2 | Ensure `nodev` option set on `/home` partition | 29045 |
-| 1.1.2.3.3 | Ensure `nosuid` option set on `/home` partition | 29046 |
-| 1.1.2.4.1 | Ensure separate partition exists for `/var` | 29055 |
-| 1.1.2.4.2 | Ensure `nodev` option set on `/var` partition | – |
-| 1.1.2.4.3 | Ensure `nosuid` option set on `/var` partition | 29057 |
-| 1.1.2.5.1 | Ensure separate partition exists for `/var/tmp` | 29058 |
-| 1.1.2.5.2 | Ensure `nodev` option set on `/var/tmp` partition | 29059 |
-| 1.1.2.5.3 | Ensure `nosuid` option set on `/var/tmp` partition | 29060 |
-| 1.1.2.5.4 | Ensure `noexec` option set on `/var/tmp` partition | 29061 |
-| 1.1.2.6.1 | Ensure separate partition exists for `/var/log` | 29062 |
-| 1.1.2.6.2 | Ensure `nodev` option set on `/var/log` partition | 29063 |
-| 1.1.2.6.3 | Ensure `nosuid` option set on `/var/log` partition | 29064 |
-| 1.1.2.6.4 | Ensure `noexec` option set on `/var/log` partition | 29065 |
-| 1.1.2.7.1 | Ensure separate partition exists for `/var/log/audit` | 29066 |
-| 1.1.2.7.2 | Ensure `nodev` option set on `/var/log/audit` partition | 29067 |
-| 1.1.2.7.3 | Ensure `nosuid` option set on `/var/log/audit` partition | 29068 |
-| 1.1.2.7.4 | Ensure `noexec` option set on `/var/log/audit` partition | 29069 |
-
-**Why:** Canonical's Ubuntu cloud image ships with a single root volume. Re-partitioning inside an AMI
-needs a custom disk layout, risks an unbootable image and prevents simply resizing the root volume at launch.
-The mount-option checks fail automatically because the partitions do not exist.
-**If you need it:** attach extra EBS volumes, mount them at these paths with `nodev,nosuid,noexec` in `/etc/fstab`.
-
-### 2. Bootloader password – 1 check
+### 1. Bootloader password – 1 check
 
 | CIS | Recommendation | Control ID |
 |---|---|---|
@@ -113,7 +107,7 @@ The mount-option checks fail automatically because the partitions do not exist.
 A password baked into a public image would also be identical for every user, which is insecure.
 **If you need it:** `grub-mkpasswd-pbkdf2`, add the superuser + hash to `/etc/grub.d/40_custom`, run `update-grub`.
 
-### 3. Password for privilege escalation – 1 check
+### 2. Password for privilege escalation – 1 check
 
 | CIS | Recommendation | Control ID |
 |---|---|---|
@@ -123,7 +117,7 @@ A password baked into a public image would also be identical for every user, whi
 so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; the rule applies to all other users.
 **If you need it:** set a password for `ubuntu` and remove `NOPASSWD` from `/etc/sudoers.d/90-cloud-init-users`.
 
-### 4. squashfs kernel module – 1 check (Level 2)
+### 3. squashfs kernel module – 1 check (Level 2)
 
 | CIS | Recommendation | Control ID |
 |---|---|---|
@@ -133,7 +127,7 @@ so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; t
 would break Session Manager / Run Command on every instance.
 **If you need it:** remove all snaps (install SSM Agent from the `.deb`), then blacklist `squashfs`.
 
-### 5. Manual review – 7 checks (not scored)
+### 4. Manual review – 7 checks (not scored)
 
 | CIS | Recommendation | Why manual |
 |---|---|---|
