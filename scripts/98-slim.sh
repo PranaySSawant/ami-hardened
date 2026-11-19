@@ -43,7 +43,9 @@ echo "SLIM: kept because needed:${SKIPPED:- none}"
 rm -rf /snap /var/snap /var/lib/snapd /var/cache/snapd /etc/cloud /var/lib/cloud /var/log/cloud-init*
 
 # squashfs only served snaps -> now disable it (CIS 1.1.1.7)
-printf 'install squashfs /bin/false\nblacklist squashfs\n' > /etc/modprobe.d/squashfs.conf
+# (same files the CIS role uses for the other modules, so audit tools find it)
+grep -q '^install squashfs' /etc/modprobe.d/CIS.conf 2>/dev/null || echo 'install squashfs /bin/false' >> /etc/modprobe.d/CIS.conf
+grep -q '^blacklist squashfs' /etc/modprobe.d/blacklist.conf 2>/dev/null || echo 'blacklist squashfs' >> /etc/modprobe.d/blacklist.conf
 
 # --- Network without cloud-init: DHCP on every ENA/virtio NIC ---
 rm -f /etc/netplan/*.yaml
