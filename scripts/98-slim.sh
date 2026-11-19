@@ -2,7 +2,7 @@
 # Remove everything vulnerability scanners flag that the server does not need,
 # keeping SSH. Runs after the CIS steps, before 99-marketplace-cleanup.sh.
 #   - snapd            : Go binaries with bundled (old) Go stdlib/x-crypto
-#   - curl             : binary flagged by upstream version (wget stays)
+#   - curl is KEPT (ec2-instance-connect needs it)
 #   - cloud-init + its Python libraries (jinja2, jwt, oauthlib, requests, ...)
 # cloud-init's job on EC2 (network, hostname, SSH key, user-data) is replaced by
 # /usr/local/sbin/ec2-firstboot (shell + wget, IMDSv2 only).
@@ -18,7 +18,7 @@ shim-signed linux-image-aws ec2-instance-connect gdisk dosfstools tar"
 # Keep every currently installed package: autoremove must not cascade
 apt-mark manual $(apt-mark showauto) >/dev/null
 
-WANT="snapd curl cloud-init cloud-initramfs-copymods
+WANT="snapd cloud-init cloud-initramfs-copymods
 python3-twisted python3-jwt python3-oauthlib python3-openssl python3-jinja2 python3-setuptools
 python3-pkg-resources python3-urllib3 python3-requests python3-idna python3-certifi
 python3-cryptography python3-pyasn1 python3-pyasn1-modules python3-httplib2 python3-pygments
@@ -56,8 +56,6 @@ network:
         name: "en*"
       dhcp4: true
       dhcp6: true
-      dhcp6-overrides:
-        use-domains: true
       optional: true
 EOF
 chmod 600 /etc/netplan/50-ec2-dhcp.yaml
