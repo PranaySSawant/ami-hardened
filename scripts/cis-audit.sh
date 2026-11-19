@@ -43,10 +43,10 @@ CMD=$(cat <<'EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -q git >/dev/null
-URL=$(curl -s https://api.github.com/repos/goss-org/goss/releases/latest | grep -o 'https://[^"]*goss-linux-amd64"' | tr -d '"' | head -1)
+URL=$(wget -qO- https://api.github.com/repos/goss-org/goss/releases/latest | grep -o 'https://[^"]*goss-linux-amd64"' | tr -d '"' | head -1)
 URL=${URL:-https://github.com/goss-org/goss/releases/download/v0.4.9/goss-linux-amd64}
 echo "goss url: $URL"
-curl -fsSL "$URL" -o /usr/local/bin/goss
+wget -q "$URL" -O /usr/local/bin/goss
 chmod 755 /usr/local/bin/goss
 /usr/local/bin/goss --version
 rm -rf /opt/UBUNTU24-CIS-Audit

@@ -75,7 +75,7 @@ sudo lvextend -r -L +10G /dev/cis/var
 | Logging & audit | `auditd` with CIS rule set, `journald` persistent + compressed, log file permissions |
 | Integrity | AIDE installed with daily check timer |
 | Time | `systemd-timesyncd` → Amazon Time Sync (169.254.169.123) |
-| Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included (official `.deb`, not the snap) |
+| Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included (official `.deb`); no snapd, no curl, no cloud-init (see Usage notes) |
 
 ## CIS compliance score
 
@@ -85,8 +85,8 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
-| **Passed** | **257 (98.8%)** – audited on ami-04a5ba557bda95b5a, 2026-11-17 |
-| Intentionally not applied (below) | 3 |
+| **Passed** | **258 (99.2%) target** – re-audit pending for the slim build |
+| Intentionally not applied (below) | 2 |
 | Manual review – not scored | 7 |
 
 ## Intentional failures (by design)
@@ -117,18 +117,7 @@ A password baked into a public image would also be identical for every user, whi
 so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; the rule applies to all other users.
 **If you need it:** set a password for `ubuntu` and remove `NOPASSWD` from `/etc/sudoers.d/90-cloud-init-users`.
 
-### 3. squashfs kernel module – 1 check (Level 2)
-
-| CIS | Recommendation | Control ID |
-|---|---|---|
-| 1.1.1.7 | Ensure squashfs kernel module is not available | 28961, 29284, 29289 |
-
-**Why:** snaps are squashfs images. `snapd` ships with Ubuntu and many tools (e.g. `aws-cli`, `certbot`) are
-installed as snaps, so disabling squashfs would silently break `snap install` for every user.
-(The SSM Agent in this image is the `.deb`, so it is not affected.)
-**If you need it:** `snap list` must be empty, then `printf 'install squashfs /bin/false\nblacklist squashfs\n' > /etc/modprobe.d/squashfs.conf`.
-
-### 4. Manual review – 7 checks (not scored)
+### 3. Manual review – 7 checks (not scored)
 
 | CIS | Recommendation | Why manual |
 |---|---|---|
@@ -141,6 +130,11 @@ installed as snaps, so disabling squashfs would silently break `snap install` fo
 | 7.1.13 | Ensure SUID and SGID files are reviewed | Requires review of your installed software |
 
 ## Usage notes
+
+- **No cloud-init.** A small boot script (`/usr/local/sbin/ec2-firstboot`) does its EC2 job: generates SSH host keys,
+  sets the hostname, installs your launch key pair for `ubuntu`, and runs **user data that starts with `#!`**
+  (shell/python scripts) once per instance. `#cloud-config` YAML is **not** supported. Log: `/var/log/ec2-user-data.log`.
+- **No snapd / no curl** (removed to keep vulnerability scans clean). Use `wget`, or `sudo apt install curl` if you need it.
 
 - **SSH users:** new users must be in group `sshusers` or `sudo` to log in: `sudo usermod -aG sshusers <user>`.
 - **Outbound traffic** is restricted to DNS, HTTP, HTTPS and NTP. Allow more with `sudo ufw allow out <port>/tcp`.

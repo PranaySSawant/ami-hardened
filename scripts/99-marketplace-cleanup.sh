@@ -52,8 +52,8 @@ find /var/log -type f -exec truncate -s 0 {} \;
 # --- Per-instance identity ---
 truncate -s 0 /etc/machine-id
 rm -f /var/lib/dbus/machine-id && ln -s /etc/machine-id /var/lib/dbus/machine-id
-cloud-init clean --logs --seed
-rm -rf /var/lib/cloud/instances/*
+command -v cloud-init >/dev/null && cloud-init clean --logs --seed || true
+rm -rf /var/lib/cloud /var/lib/ec2-firstboot
 
 # Ubuntu Pro / Landscape must not be attached in a resold AMI
 command -v pro >/dev/null && pro detach --assume-yes || true

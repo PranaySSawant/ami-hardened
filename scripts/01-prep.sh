@@ -8,7 +8,7 @@ while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
 
 apt-get update -y
 apt-get -o Dpkg::Options::="--force-confold" dist-upgrade -y
-apt-get install -y python3 python3-apt acl unattended-upgrades amazon-ec2-utils lvm2 gdisk dosfstools grub-pc-bin grub-efi-amd64-bin
+apt-get install -y python3 python3-apt acl unattended-upgrades amazon-ec2-utils wget lvm2 gdisk dosfstools grub-pc-bin grub-efi-amd64-bin
 
 # SSM agent: use the official .deb instead of the snap. The snap runs under AppArmor
 # *complain* profiles (snap.amazon-ssm-agent.*), which fails CIS 1.3.1.4.
