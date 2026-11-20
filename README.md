@@ -191,6 +191,18 @@ sudo ./resolve-findings.sh server-resolve      # undo: sudo ./resolve-findings.s
   the raw count, and other accounts that launch this image see it until they add the same rule.
 - Rollback data is kept on each server in `/var/lib/resolve-findings/`; check it any time with `status`.
 
+**For the AMI itself**
+
+- The image already contains the fixed versions (openssh `1:9.6p1-3ubuntu13.20`, newest SSM Agent at build time),
+  so `server-resolve` has nothing to fix on a fresh launch; it matters on servers that have run for a while.
+- The scan page of the AMI shows **30 findings**. They can only drop on that page by rebuilding the image:
+  the monthly rebuild (5th of each month) picks up new Ubuntu fixes and a newer SSM Agent, which clears the 1 Go finding.
+- The 29 openssh findings will keep showing on the AMI scan page, because the scanner reads only the upstream
+  version `9.6p1`. Resolving them means documenting them (this README) and suppressing them in Inspector with
+  `inspector-resolve`; nothing in the image changes.
+- If all findings are resolved: **0 open vulnerabilities, 29 suppressed as fixed by Ubuntu, 1 cleared by the
+  next SSM Agent release.** SSH, SSM, CIS 258/260 and all other features keep working.
+
 | CVE | Severity | Ubuntu 24.04 status | Fixed in `openssh` |
 |---|---|---|---|
 | [CVE-2026-60002](https://ubuntu.com/security/CVE-2026-60002) | Critical | Fixed | 9.6p1-3ubuntu13.18 |
