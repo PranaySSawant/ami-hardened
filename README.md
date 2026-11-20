@@ -75,7 +75,7 @@ sudo lvextend -r -L +10G /dev/cis/var
 | Logging & audit | `auditd` with CIS rule set, `journald` persistent + compressed, log file permissions |
 | Integrity | AIDE installed with daily check timer |
 | Time | `systemd-timesyncd` → Amazon Time Sync (169.254.169.123) |
-| Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included (official `.deb`); no snapd, no cloud-init (see Usage notes) |
+| Cloud hygiene | No SSH keys, passwords, logs, history or machine-id baked in; SSM Agent included (official `.deb`); no snapd, no curl, no cloud-init (see Usage notes) |
 
 ## CIS compliance score
 
@@ -205,7 +205,8 @@ All 29 openssh findings are fixed or not applicable on Ubuntu 24.04. To verify a
 - **No cloud-init.** A small boot script (`/usr/local/sbin/ec2-firstboot`) does its EC2 job: generates SSH host keys,
   sets the hostname, installs your launch key pair for `ubuntu`, and runs **user data that starts with `#!`**
   (shell/python scripts) once per instance. `#cloud-config` YAML is **not** supported. Log: `/var/log/ec2-user-data.log`.
-- **No snapd** (removed to keep vulnerability scans clean). Install software with `apt`.
+- **No snapd, no curl, no EC2 Instance Connect** (removed to keep vulnerability scans clean). Log in with your
+  EC2 key pair over SSH, or with SSM Session Manager. Use `wget`, or `sudo apt install curl` if you need curl.
 
 - **SSH users:** new users must be in group `sshusers` or `sudo` to log in: `sudo usermod -aG sshusers <user>`.
 - **Outbound traffic** is restricted to DNS, HTTP, HTTPS and NTP. Allow more with `sudo ufw allow out <port>/tcp`.

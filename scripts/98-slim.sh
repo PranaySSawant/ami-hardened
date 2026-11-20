@@ -2,7 +2,7 @@
 # Remove everything vulnerability scanners flag that the server does not need,
 # keeping SSH. Runs after the CIS steps, before 99-marketplace-cleanup.sh.
 #   - snapd            : Go binaries with bundled (old) Go stdlib/x-crypto
-#   - curl is KEPT (ec2-instance-connect needs it)
+#   - ec2-instance-connect + curl : curl binary is flagged by upstream version
 #   - cloud-init + its Python libraries (jinja2, jwt, oauthlib, requests, ...)
 # cloud-init's job on EC2 (network, hostname, SSH key, user-data) is replaced by
 # /usr/local/sbin/ec2-firstboot (shell + wget, IMDSv2 only).
@@ -13,12 +13,12 @@ export DEBIAN_FRONTEND=noninteractive
 PROTECT="openssh-server openssh-client amazon-ssm-agent ufw unattended-upgrades apparmor
 apparmor-utils auditd systemd systemd-timesyncd systemd-resolved lvm2 sudo libpam-pwquality
 rsyslog netplan.io wget python3 python3-apt python3-yaml grub-pc grub-efi-amd64-signed
-shim-signed linux-image-aws ec2-instance-connect gdisk dosfstools tar"
+shim-signed linux-image-aws gdisk dosfstools tar"
 
 # Keep every currently installed package: autoremove must not cascade
 apt-mark manual $(apt-mark showauto) >/dev/null
 
-WANT="snapd cloud-init cloud-initramfs-copymods
+WANT="snapd ec2-instance-connect curl cloud-init cloud-initramfs-copymods
 python3-twisted python3-jwt python3-oauthlib python3-openssl python3-jinja2 python3-setuptools
 python3-pkg-resources python3-urllib3 python3-requests python3-idna python3-certifi
 python3-cryptography python3-pyasn1 python3-pyasn1-modules python3-httplib2 python3-pygments
