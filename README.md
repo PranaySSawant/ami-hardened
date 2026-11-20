@@ -85,7 +85,7 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
-| **Passed** | **258 (99.2%) target** – re-audit pending for the slim build |
+| **Passed** | **258 (99.2%)** – audited on ami-05f08490000b2d85d, 2026-11-19 |
 | Intentionally not applied (below) | 2 |
 | Manual review – not scored | 7 |
 
