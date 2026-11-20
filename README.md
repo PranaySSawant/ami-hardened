@@ -129,6 +129,77 @@ so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; t
 | 6.1.1.2 | Ensure journald log file access is configured | Site-specific log access policy |
 | 7.1.13 | Ensure SUID and SGID files are reviewed | Requires review of your installed software |
 
+## Vulnerability scan results (Amazon Inspector)
+
+Scan of `ami-05f08490000b2d85d` on 2026-11-20: **67 findings** (was 230 before snapd, cloud-init and unused
+Python libraries were removed). Every remaining finding is listed below with Ubuntu's own status.
+
+| Package | Findings | Ubuntu status |
+|---|---|---|
+| openssh | 29 | **All resolved**: 28 fixed in the installed `1:9.6p1-3ubuntu13.20`, 1 does not affect Ubuntu |
+| curl | 37 | 27 fixed in the installed `8.5.0-2ubuntu10.16`, 4 not affected, 4 not tracked by Ubuntu, **2 open** (CVE-2026-19931, CVE-2026-80231) awaiting an Ubuntu update |
+| go/stdlib | 1 | Inside the AWS SSM Agent binaries (`/usr/bin/amazon-ssm-agent`, `ssm-*`); fixed when AWS ships a new agent |
+
+**Why fixed CVEs still show:** Ubuntu applies security fixes to the same upstream version (OpenSSH stays
+`9.6p1`, curl stays `8.5.0`) and only changes the `-ubuntuN` suffix. Inspector reads the upstream number
+from the binary, so it reports CVEs that Ubuntu has already fixed. The monthly rebuild picks up every new fix.
+
+### How to resolve the SSH (openssh) findings
+
+All 29 openssh findings are fixed or not applicable on Ubuntu 24.04. To verify and close them:
+
+1. **Check the installed version** is at least `1:9.6p1-3ubuntu13.20` (the highest fix version below):
+   ```bash
+   dpkg-query -W openssh-server openssh-client
+   ```
+2. **Confirm a specific CVE is patched** in Ubuntu's changelog, for example:
+   ```bash
+   apt changelog openssh-server 2>/dev/null | grep -E 'CVE-2026-60002|CVE-2024-6387'
+   ```
+3. **Keep it patched:** automatic security updates are enabled. To update now:
+   ```bash
+   sudo apt-get update && sudo apt-get install --only-upgrade -y openssh-server openssh-client && sudo systemctl restart ssh
+   ```
+4. **Close them in Inspector** (for instances launched from this image) with a suppression rule that records
+   the reason. Review the rule after each Ubuntu OpenSSH update:
+   ```bash
+   aws inspector2 create-filter --action SUPPRESS --name ubuntu-openssh-vendor-fixed \
+     --reason "Fixed by Ubuntu in openssh 1:9.6p1-3ubuntu13.20 (USN backports); CVE-2026-123158 is musl/Alpine-only" \
+     --filter-criteria '{"vulnerabilityId":[{"comparison":"EQUALS","value":"CVE-2026-60002"},{"comparison":"EQUALS","value":"CVE-2024-6387"},{"comparison":"EQUALS","value":"CVE-2026-106553"},{"comparison":"EQUALS","value":"CVE-2026-106555"},{"comparison":"EQUALS","value":"CVE-2026-106583"},{"comparison":"EQUALS","value":"CVE-2026-123158"},{"comparison":"EQUALS","value":"CVE-2026-35385"},{"comparison":"EQUALS","value":"CVE-2026-35414"},{"comparison":"EQUALS","value":"CVE-2026-59999"},{"comparison":"EQUALS","value":"CVE-2026-60000"},{"comparison":"EQUALS","value":"CVE-2025-26465"},{"comparison":"EQUALS","value":"CVE-2025-26466"},{"comparison":"EQUALS","value":"CVE-2026-106552"},{"comparison":"EQUALS","value":"CVE-2026-106585"},{"comparison":"EQUALS","value":"CVE-2026-106586"},{"comparison":"EQUALS","value":"CVE-2026-35387"},{"comparison":"EQUALS","value":"CVE-2026-59995"},{"comparison":"EQUALS","value":"CVE-2026-59996"},{"comparison":"EQUALS","value":"CVE-2026-59997"},{"comparison":"EQUALS","value":"CVE-2026-59998"},{"comparison":"EQUALS","value":"CVE-2026-60001"},{"comparison":"EQUALS","value":"CVE-2026-73282"},{"comparison":"EQUALS","value":"CVE-2025-32728"},{"comparison":"EQUALS","value":"CVE-2026-106582"},{"comparison":"EQUALS","value":"CVE-2026-106584"},{"comparison":"EQUALS","value":"CVE-2026-106587"},{"comparison":"EQUALS","value":"CVE-2026-35388"},{"comparison":"EQUALS","value":"CVE-2026-73281"},{"comparison":"EQUALS","value":"CVE-2026-73283"}]}'
+   ```
+
+| CVE | Severity | Ubuntu 24.04 status | Fixed in `openssh` |
+|---|---|---|---|
+| [CVE-2026-60002](https://ubuntu.com/security/CVE-2026-60002) | Critical | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2024-6387](https://ubuntu.com/security/CVE-2024-6387) | High | Fixed | 9.6p1-3ubuntu13.3 |
+| [CVE-2026-106553](https://ubuntu.com/security/CVE-2026-106553) | High | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-106555](https://ubuntu.com/security/CVE-2026-106555) | High | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-106583](https://ubuntu.com/security/CVE-2026-106583) | High | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-123158](https://ubuntu.com/security/CVE-2026-123158) | High | Not affected (musl/Alpine only) | – |
+| [CVE-2026-35385](https://ubuntu.com/security/CVE-2026-35385) | High | Fixed | 9.6p1-3ubuntu13.16 |
+| [CVE-2026-35414](https://ubuntu.com/security/CVE-2026-35414) | High | Fixed | 9.6p1-3ubuntu13.16 |
+| [CVE-2026-59999](https://ubuntu.com/security/CVE-2026-59999) | High | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2026-60000](https://ubuntu.com/security/CVE-2026-60000) | High | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2025-26465](https://ubuntu.com/security/CVE-2025-26465) | Medium | Fixed | 9.6p1-3ubuntu13.8 |
+| [CVE-2025-26466](https://ubuntu.com/security/CVE-2025-26466) | Medium | Fixed | 9.6p1-3ubuntu13.8 |
+| [CVE-2026-106552](https://ubuntu.com/security/CVE-2026-106552) | Medium | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-106585](https://ubuntu.com/security/CVE-2026-106585) | Medium | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-106586](https://ubuntu.com/security/CVE-2026-106586) | Medium | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-35387](https://ubuntu.com/security/CVE-2026-35387) | Medium | Fixed | 9.6p1-3ubuntu13.16 |
+| [CVE-2026-59995](https://ubuntu.com/security/CVE-2026-59995) | Medium | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2026-59996](https://ubuntu.com/security/CVE-2026-59996) | Medium | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2026-59997](https://ubuntu.com/security/CVE-2026-59997) | Medium | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2026-59998](https://ubuntu.com/security/CVE-2026-59998) | Medium | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2026-60001](https://ubuntu.com/security/CVE-2026-60001) | Medium | Fixed | 9.6p1-3ubuntu13.18 |
+| [CVE-2026-73282](https://ubuntu.com/security/CVE-2026-73282) | Medium | Fixed | 9.6p1-3ubuntu13.19 |
+| [CVE-2025-32728](https://ubuntu.com/security/CVE-2025-32728) | Low | Fixed | 9.6p1-3ubuntu13.11 |
+| [CVE-2026-106582](https://ubuntu.com/security/CVE-2026-106582) | Low | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-106584](https://ubuntu.com/security/CVE-2026-106584) | Low | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-106587](https://ubuntu.com/security/CVE-2026-106587) | Low | Fixed | 9.6p1-3ubuntu13.20 |
+| [CVE-2026-35388](https://ubuntu.com/security/CVE-2026-35388) | Low | Fixed | 9.6p1-3ubuntu13.16 |
+| [CVE-2026-73281](https://ubuntu.com/security/CVE-2026-73281) | Low | Fixed | 9.6p1-3ubuntu13.19 |
+| [CVE-2026-73283](https://ubuntu.com/security/CVE-2026-73283) | Low | Fixed | 9.6p1-3ubuntu13.19 |
+
 ## Usage notes
 
 - **No cloud-init.** A small boot script (`/usr/local/sbin/ec2-firstboot`) does its EC2 job: generates SSH host keys,
