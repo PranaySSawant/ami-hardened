@@ -85,7 +85,7 @@ Audited against **CIS Benchmark for Ubuntu Linux 24.04 LTS v1.0.0 – Level 1 + 
 | | Recommendations |
 |---|---|
 | Scored (automated) | 260 |
-| **Passed** | **258 (99.2%)** – audited on ami-05f08490000b2d85d, 2026-11-19 |
+| **Passed** | **258 (99.2%)** – audited on ami-0532d185415398977, 2026-11-20 |
 | Intentionally not applied (below) | 2 |
 | Manual review – not scored | 7 |
 
@@ -131,13 +131,13 @@ so `sudo` cannot ask for one. Passwordless sudo is kept **only for `ubuntu`**; t
 
 ## Vulnerability scan results (Amazon Inspector)
 
-Scan of `ami-05f08490000b2d85d` on 2026-11-20: **67 findings** (was 230 before snapd, cloud-init and unused
-Python libraries were removed). Every remaining finding is listed below with Ubuntu's own status.
+Expected scan of `ami-0532d185415398977`: **30 findings, none of them open on Ubuntu** except one in the AWS SSM Agent
+(was 230; snapd, curl, EC2 Instance Connect, cloud-init and unused Python libraries were removed).
+Every remaining finding is listed below with Ubuntu's own status.
 
 | Package | Findings | Ubuntu status |
 |---|---|---|
 | openssh | 29 | **All resolved**: 28 fixed in the installed `1:9.6p1-3ubuntu13.20`, 1 does not affect Ubuntu |
-| curl | 37 | 27 fixed in the installed `8.5.0-2ubuntu10.16`, 4 not affected, 4 not tracked by Ubuntu, **2 open** (CVE-2026-19931, CVE-2026-80231) awaiting an Ubuntu update |
 | go/stdlib | 1 | Inside the AWS SSM Agent binaries (`/usr/bin/amazon-ssm-agent`, `ssm-*`); fixed when AWS ships a new agent |
 
 **Why fixed CVEs still show:** Ubuntu applies security fixes to the same upstream version (OpenSSH stays
