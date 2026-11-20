@@ -178,6 +178,19 @@ sudo ./resolve-findings.sh server-resolve      # undo: sudo ./resolve-findings.s
 ./resolve-findings.sh status
 ```
 
+**What happens when you resolve all findings**
+
+| Step | What it changes | Effect on the scan | Risk | Rollback |
+|---|---|---|---|---|
+| `server-resolve`: openssh | Installs the newest Ubuntu security update for `openssh-server/client` and restarts SSH (config checked with `sshd -t` first) | Nothing visible: the 29 CVEs are already fixed, the scanner still reads `9.6p1` | Very low; open SSH sessions stay connected | `server-rollback` reinstalls the saved `.deb` files |
+| `server-resolve`: SSM Agent | Installs the newest official SSM Agent if AWS has released one | The 1 Go finding clears **only if** AWS has shipped a newer agent | Low; the agent restarts (a few seconds) | `server-rollback` reinstalls the previous agent version |
+| `inspector-resolve` | Creates one Inspector suppression rule (`ubuntu-openssh-vendor-fixed`) listing the 29 openssh CVEs, with the reason "fixed by Ubuntu" | The 29 openssh findings move to **Suppressed** for EC2 instances in this account and Region; the count drops to 1 (or 0 after a newer SSM Agent) | If a future openssh CVE has the same ID it stays hidden; review the rule after each Ubuntu OpenSSH update. It does not change any server | `inspector-rollback` deletes the rule and the findings show again |
+
+- Nothing is uninstalled and no security setting is weakened: the CIS score stays 258/260.
+- The suppression rule only hides findings in **your** Inspector account. The AMI's own scan page and other
+  accounts that launch this image still show the raw count until they add the same rule.
+- Rollback data is kept on each server in `/var/lib/resolve-findings/`; check it any time with `status`.
+
 | CVE | Severity | Ubuntu 24.04 status | Fixed in `openssh` |
 |---|---|---|---|
 | [CVE-2026-60002](https://ubuntu.com/security/CVE-2026-60002) | Critical | Fixed | 9.6p1-3ubuntu13.18 |
