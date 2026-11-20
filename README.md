@@ -168,6 +168,16 @@ All 29 openssh findings are fixed or not applicable on Ubuntu 24.04. To verify a
      --filter-criteria '{"vulnerabilityId":[{"comparison":"EQUALS","value":"CVE-2026-60002"},{"comparison":"EQUALS","value":"CVE-2024-6387"},{"comparison":"EQUALS","value":"CVE-2026-106553"},{"comparison":"EQUALS","value":"CVE-2026-106555"},{"comparison":"EQUALS","value":"CVE-2026-106583"},{"comparison":"EQUALS","value":"CVE-2026-123158"},{"comparison":"EQUALS","value":"CVE-2026-35385"},{"comparison":"EQUALS","value":"CVE-2026-35414"},{"comparison":"EQUALS","value":"CVE-2026-59999"},{"comparison":"EQUALS","value":"CVE-2026-60000"},{"comparison":"EQUALS","value":"CVE-2025-26465"},{"comparison":"EQUALS","value":"CVE-2025-26466"},{"comparison":"EQUALS","value":"CVE-2026-106552"},{"comparison":"EQUALS","value":"CVE-2026-106585"},{"comparison":"EQUALS","value":"CVE-2026-106586"},{"comparison":"EQUALS","value":"CVE-2026-35387"},{"comparison":"EQUALS","value":"CVE-2026-59995"},{"comparison":"EQUALS","value":"CVE-2026-59996"},{"comparison":"EQUALS","value":"CVE-2026-59997"},{"comparison":"EQUALS","value":"CVE-2026-59998"},{"comparison":"EQUALS","value":"CVE-2026-60001"},{"comparison":"EQUALS","value":"CVE-2026-73282"},{"comparison":"EQUALS","value":"CVE-2025-32728"},{"comparison":"EQUALS","value":"CVE-2026-106582"},{"comparison":"EQUALS","value":"CVE-2026-106584"},{"comparison":"EQUALS","value":"CVE-2026-106587"},{"comparison":"EQUALS","value":"CVE-2026-35388"},{"comparison":"EQUALS","value":"CVE-2026-73281"},{"comparison":"EQUALS","value":"CVE-2026-73283"}]}'
    ```
 
+**One script does it all (with rollback):** [`scripts/resolve-findings.sh`](scripts/resolve-findings.sh)
+
+```bash
+# on each server (as root): update openssh + SSM Agent, verify, keep rollback copies
+sudo ./resolve-findings.sh server-resolve      # undo: sudo ./resolve-findings.sh server-rollback
+# in CloudShell: mark the 29 Ubuntu-fixed openssh CVEs as resolved in Inspector
+./resolve-findings.sh inspector-resolve        # undo: ./resolve-findings.sh inspector-rollback
+./resolve-findings.sh status
+```
+
 | CVE | Severity | Ubuntu 24.04 status | Fixed in `openssh` |
 |---|---|---|---|
 | [CVE-2026-60002](https://ubuntu.com/security/CVE-2026-60002) | Critical | Fixed | 9.6p1-3ubuntu13.18 |
