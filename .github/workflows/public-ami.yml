@@ -57,16 +57,3 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "latest image (${{ matrix.arch }}): $(jq -c . latest-images.json)"
           for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
-      - name: Record the new image in images/latest.json
-        if: success()
-        run: |
-          NEW=$(jq -r --arg a "${{ matrix.arch }}" '.[$a]' images/latest.json)
-          git config user.name "ami-bot"; git config user.email "ami-bot@users.noreply.github.com"
-          for i in 1 2 3 4 5; do
-            git fetch -q origin main && git reset -q --hard origin/main
-            jq --arg a "${{ matrix.arch }}" --arg v "$NEW" '.[$a]=$v' images/latest.json > /tmp/l.json && mv /tmp/l.json images/latest.json
-            git add images/latest.json
-            git diff --cached --quiet && break
-            git commit -q -m "images: latest ${{ matrix.arch }} = $NEW" && git push -q origin HEAD:main && break
-            sleep $((i*5))
-          done
