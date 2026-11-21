@@ -24,7 +24,23 @@ fi
 [ -n "$BASE" ] || BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
        --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
 if [ "$BASE" = None ] || [ -z "$BASE" ]; then
-  # no hardened image for this architecture yet -> build the base first (one-time, ~25 min)
+  # 3) no image left: re-register one from the standalone backup snapshot (~1 min)
+  BK=$(aws ec2 describe-snapshots --region "$REGION" --owner-ids self --filters Name=tag:Stage,Values=cis-base-backup Name=tag:Arch,Values="$ARCH" \
+       Name=status,Values=completed --query 'sort_by(Snapshots,&StartTime)[-1].SnapshotId' --output text)
+  if [ -n "$BK" ] && [ "$BK" != None ]; then
+    [ "$ARCH" = arm64 ] && BM=uefi || BM=uefi-preferred
+    BASE=$(aws ec2 register-image --region "$REGION" --name "ubuntu-2404-cis-base-restored-$ARCH-$(date -u +%Y%m%d-%H%M)" \
+           --description "PRIVATE hardened base restored from backup snapshot $BK" \
+           --architecture "$AWSARCH" --root-device-name /dev/sda1 --virtualization-type hvm --ena-support \
+           --boot-mode "$BM" --imds-support v2.0 \
+           --block-device-mappings "DeviceName=/dev/sda1,Ebs={SnapshotId=$BK,VolumeSize=30,VolumeType=gp3,DeleteOnTermination=true}" \
+           --tag-specifications "ResourceType=image,Tags=[{Key=Stage,Value=cis-base}]" --query ImageId --output text)
+    aws ec2 wait image-available --region "$REGION" --image-ids "$BASE"
+    echo "==> Restored base $BASE from backup snapshot $BK"
+  fi
+fi
+if [ "$BASE" = None ] || [ -z "$BASE" ]; then
+  # 4) no image and no backup: build the base (one-time, ~25 min) for this architecture yet -> build the base first (one-time, ~25 min)
   echo "==> No hardened $ARCH image found - building the base first"
   ARCH=$ARCH bash scripts/make-base-ami.sh "$REGION"
   BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \

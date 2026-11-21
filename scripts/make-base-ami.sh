@@ -25,6 +25,22 @@ aws ec2 wait image-available --region "$REGION" --image-ids "$BASE"
 aws ec2 create-tags --region "$REGION" --resources "$BASE" --tags Key=Stage,Value=cis-base
 echo "BASE (private): $BASE"
 
+# Standalone backup snapshot of the base disk: if every hardened image is deleted, the quick
+# build re-registers an image from it in ~1 min instead of a 25-min full rebuild.
+SRC=$(aws ec2 describe-images --region "$REGION" --image-ids "$BASE" --query 'Images[0].BlockDeviceMappings[0].Ebs.SnapshotId' --output text)
+if BK=$(aws ec2 copy-snapshot --region "$REGION" --source-region "$REGION" --source-snapshot-id "$SRC" \
+        --description "cis-base-backup $ARCH from $BASE" \
+        --tag-specifications "ResourceType=snapshot,Tags=[{Key=Stage,Value=cis-base-backup},{Key=Arch,Value=$ARCH},{Key=FromAMI,Value=$BASE}]" \
+        --query SnapshotId --output text 2>/dev/null); then
+  echo "backup snapshot: $BK"
+  for old in $(aws ec2 describe-snapshots --region "$REGION" --owner-ids self --filters Name=tag:Stage,Values=cis-base-backup Name=tag:Arch,Values="$ARCH" \
+               --query "Snapshots[?SnapshotId!='$BK'].SnapshotId" --output text); do
+    aws ec2 delete-snapshot --region "$REGION" --snapshot-id "$old" && echo "removed old backup $old"
+  done
+else
+  echo "WARNING: could not create backup snapshot (needs ec2:CopySnapshot - re-run bootstrap/setup-aws.sh)"
+fi
+
 # keep only the newest base image
 for old in $(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base Name=architecture,Values=$AWSARCH \
              --query "Images[?ImageId!='$BASE'].ImageId" --output text); do
