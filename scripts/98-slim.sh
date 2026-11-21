@@ -132,6 +132,6 @@ systemctl enable systemd-networkd-wait-online.service 2>/dev/null || true
 
 # Final check: nothing important went missing
 for k in openssh-server amazon-ssm-agent ufw unattended-upgrades auditd netplan.io wget; do
-  dpkg-query -W -f='${db:Status-Abbrev}' "$k" | grep -q '^ii' || { echo "MISSING $k"; exit 1; }
+  dpkg-query -W -f='${db:Status-Abbrev}' "$k" | grep -q '^[ih]i' || { echo "MISSING $k"; exit 1; }   # hi = installed + held
 done
 dpkg-query -W -f='${Package}\n' 'python3-*' | sort | paste -sd' '
