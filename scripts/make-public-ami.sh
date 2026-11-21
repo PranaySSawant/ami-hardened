@@ -21,8 +21,15 @@ if [ -n "$BASE" ] && ! aws ec2 describe-images --region "$REGION" --image-ids "$
   BASE=""
 fi
 # 2) otherwise the newest hardened image in the account
-[ -n "$BASE" ] || BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
-       --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
+[ -n "$BASE" ] || # 1) last image recorded in the repo (images/latest.json), if it still exists
+BASE=$(jq -r --arg a "$ARCH" '.[$a] // empty' images/latest.json 2>/dev/null || true)
+if [ -n "$BASE" ] && [ "$(aws ec2 describe-images --region "$REGION" --image-ids "$BASE" --query 'Images[0].State' --output text 2>/dev/null)" = available ]; then
+  echo "==> Using last recorded $ARCH image $BASE"
+else
+  # 2) newest hardened image in the account, 3) otherwise build the base (below)
+  BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
+         --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
+fi
 if [ "$BASE" = None ] || [ -z "$BASE" ]; then
   # no hardened image for this architecture yet -> build the base first (one-time, ~25 min)
   echo "==> No hardened $ARCH image found - building the base first"
@@ -48,6 +55,9 @@ publish() {   # region ami
 }
 
 publish "$REGION" "$AMI"
+
+# record it in the repo for the next build (the workflow commits images/latest.json)
+tmp=$(mktemp); jq --arg a "$ARCH" --arg v "$AMI" '.[$a]=$v' images/latest.json > "$tmp" && mv "$tmp" images/latest.json
 
 # record it in the repo: the next quick build starts from this image
 NAME=$(aws ec2 describe-images --region "$REGION" --image-ids "$AMI" --query 'Images[0].Name' --output text)
