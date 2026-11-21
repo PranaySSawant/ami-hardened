@@ -39,7 +39,6 @@ source "amazon-ebs" "quick" {
   ena_support   = true
   sriov_support = true
   imds_support  = "v2.0"
-  boot_mode     = "uefi-preferred"
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
