@@ -14,9 +14,9 @@ need aws; need jq; need packer
 echo "==> Checking build network in $REGION"
 bash scripts/ensure-build-network.sh "$REGION" >/dev/null
 
-BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base \
+BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public \
        --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
-[ "$BASE" != None ] || { echo "No base image (tag Stage=cis-base). Run the 'Build BASE AMI' workflow first."; exit 1; }
+[ "$BASE" != None ] || { echo "No hardened image (tag Stage=cis-base or public). Run the 'Build BASE AMI' workflow first."; exit 1; }
 echo "==> Quick build in $REGION (v$VERSION) from base $BASE – about 10 min"
 packer init quick.pkr.hcl
 packer build -color=false -var "region=$REGION" -var "version=$VERSION" quick.pkr.hcl

@@ -22,7 +22,8 @@ source "amazon-ebs" "quick" {
   temporary_key_pair_type = "ed25519"
 
   source_ami_filter {
-    filters     = { "tag:Stage" = "cis-base", "state" = "available" }
+    # newest hardened image: the last public build (or the monthly base if it is newer)
+    filters     = { "tag:Stage" = "cis-base,public", "state" = "available" }
     owners      = ["self"]
     most_recent = true
   }
