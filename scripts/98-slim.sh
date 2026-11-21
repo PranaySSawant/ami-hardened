@@ -97,6 +97,11 @@ if [ -n "$KEYS" ]; then
   chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys; chmod 600 /home/ubuntu/.ssh/authorized_keys
 fi
 
+# AIDE database for THIS server (CIS 6.3): built once in the background at low priority
+if command -v aideinit >/dev/null && [ ! -s /var/lib/aide/aide.db ] && ! systemctl is-active -q aide-firstinit 2>/dev/null; then
+  systemd-run --unit=aide-firstinit --description="AIDE first database" nice -n 19 ionice -c3 aideinit -y -f >/dev/null 2>&1 || true
+fi
+
 # User data: shell scripts (#!...) run once per instance, as root
 IID=$(get meta-data/instance-id); STATE=/var/lib/ec2-firstboot
 install -d -m 700 $STATE

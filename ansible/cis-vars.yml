@@ -40,3 +40,7 @@ ubtu24cis_firewall_package: ufw
 
 # Don't run the goss audit during the build (run it separately on a test instance)
 run_audit: false
+
+# AIDE database is created on each server's first boot (ec2-firstboot), not in the image:
+# a DB built at image time would not match the launched server, and it saves ~3 min per build.
+aide_initiate_command: /bin/true

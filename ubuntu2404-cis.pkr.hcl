@@ -1,7 +1,7 @@
 packer {
   required_plugins {
     amazon  = { source = "github.com/hashicorp/amazon",  version = ">= 1.3.0" }
-    ansible = { source = "github.com/hashicorp/ansible", version = ">= 1.1.0" }
+    ansible = { source = "github.com/hashicorp/ansible", version = ">= 1.1.0" }   # ansible-local provisioner
   }
 }
 
@@ -107,27 +107,22 @@ build {
     expect_disconnect = true
   }
 
-  # 2. CIS hardening (ansible-lockdown UBUNTU24-CIS)
-  provisioner "ansible" {
-    playbook_file   = "ansible/site.yml"
-    user            = "ubuntu"
-    use_proxy       = false
+  # 2. CIS hardening (ansible-lockdown UBUNTU24-CIS), run LOCALLY on the build server
+  provisioner "shell" {
+    script          = "scripts/10-ansible-local-setup.sh"
+    execute_command = "sudo -E bash '{{ .Path }}'"
     pause_before    = "5s"
-    galaxy_file     = "ansible/requirements.yml"
-    roles_path      = "ansible/roles"
-    extra_arguments = [
-      "--become",
-      "--tags", "level1-server,level2-server",
-      "--extra-vars", "@ansible/cis-vars.yml",
-      "--scp-extra-args", "'-O'"
-    ]
-    ansible_env_vars = [
-      "ANSIBLE_HOST_KEY_CHECKING=False",
-      "ANSIBLE_PIPELINING=True",                                   # ~3-5x fewer SSH round-trips
-      "ANSIBLE_SSH_ARGS=-o ControlMaster=auto -o ControlPersist=30m",
-      "ANSIBLE_CALLBACK_RESULT_FORMAT=yaml",
-      "ANSIBLE_DISPLAY_SKIPPED_HOSTS=False"                        # smaller logs
-    ]
+  }
+  provisioner "ansible-local" {
+    playbook_file   = "ansible/site.yml"
+    playbook_dir    = "ansible"            # includes roles/ (installed by the make-*.sh scripts) and cis-vars.yml
+    command         = "sudo -H env ANSIBLE_CALLBACK_RESULT_FORMAT=yaml ANSIBLE_DISPLAY_SKIPPED_HOSTS=False ANSIBLE_ROLES_PATH=roles /opt/cis-ansible/bin/ansible-playbook"
+    extra_arguments = ["--tags", "level1-server,level2-server", "--extra-vars", "@cis-vars.yml"]
+    clean_staging_directory = true
+  }
+  provisioner "shell" {
+    script          = "scripts/11-ansible-local-cleanup.sh"
+    execute_command = "sudo -E bash '{{ .Path }}'"
   }
 
   # 3. Extra CIS Ubuntu 24.04 v1.0.0 settings (SSH crypto, /tmp, sysctl, TMOUT)

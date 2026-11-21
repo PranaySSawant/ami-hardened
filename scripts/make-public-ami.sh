@@ -45,11 +45,16 @@ if [ "$BASE" = None ] || [ -z "$BASE" ]; then
   ARCH=$ARCH bash scripts/make-base-ami.sh "$REGION"
   BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
          --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
+  FRESH=1   # the base was just built from scratch -> publish it directly, no second (quick) build
 fi
 echo "==> Quick build ($ARCH) in $REGION (v$VERSION) from base $BASE – about 10 min"
-packer init quick.pkr.hcl
-packer build -color=false -var "region=$REGION" -var "version=$VERSION" -var "source_ami=$BASE" -var "arch=$ARCH" quick.pkr.hcl
-AMI=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
+if [ "${FRESH:-0}" = 1 ]; then
+  AMI=$BASE
+else
+  packer init quick.pkr.hcl
+  packer build -color=false -var "region=$REGION" -var "version=$VERSION" -var "source_ami=$BASE" -var "arch=$ARCH" quick.pkr.hcl
+  AMI=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
+fi
 echo "==> Built $AMI"
 
 publish() {   # region ami
