@@ -9,8 +9,8 @@ on:
         description: "Build region"
         default: "ap-south-1"
       arch:
-        description: "amd64, arm64 (Graviton) or both"
-        default: "both"
+        description: "arm64 (Graviton), amd64 or both"
+        default: "arm64"
       from_ami:
         description: "Optional: copy this existing hardened AMI as the base instead of building (bootstrap)"
         default: ""
@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON((github.event.inputs.arch == 'amd64' && '["amd64"]') || (github.event.inputs.arch == 'arm64' && '["arm64"]') || '["amd64","arm64"]') }}
+        arch: ${{ fromJSON((github.event.inputs.arch == 'amd64' && '["amd64"]') || (github.event.inputs.arch == 'both' && '["amd64","arm64"]') || '["arm64"]') }}
     concurrency: ami-build-${{ matrix.arch }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
