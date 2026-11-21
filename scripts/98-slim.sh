@@ -30,6 +30,16 @@ python3-jsonpointer python3-jsonschema python3-serial python3-requests-unixsocke
 
 # Only real (installed) packages, and only those whose removal doesn't touch PROTECT
 SKIPPED=""
+INST=""; for p in $WANT; do dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | grep -q '^ii' && INST="$INST $p"; done
+# fast path: one simulation + one purge for everything (~2 min faster than package by package)
+# shellcheck disable=SC2086
+RMALL=$(apt-get -s purge $INST 2>/dev/null | awk '/^Purg|^Remv/{print $2}')
+hit=""; for k in $PROTECT; do grep -qx "$k" <<<"$RMALL" && hit="$k"; done
+if [ -n "$INST" ] && [ -z "$hit" ]; then
+  # shellcheck disable=SC2086
+  apt-get purge -y $INST
+  WANT=""
+fi
 for p in $WANT; do
   dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | grep -q '^ii' || continue
   RM=$(apt-get -s purge "$p" | awk '/^Purg|^Remv/{print $2}')

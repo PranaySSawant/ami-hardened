@@ -6,14 +6,14 @@ packer {
 }
 
 variable "region"        { default = "ap-south-1" }     # use us-east-1 for Marketplace ingestion
-variable "instance_type" { default = "" }            # empty = c7i.xlarge (amd64) / c7g.xlarge (arm64)
+variable "instance_type" { default = "" }            # empty = c7i.2xlarge (amd64) / c7g.2xlarge (arm64) – billed per second
 variable "arch"          { default = "amd64" }          # amd64 | arm64 (Graviton)
 variable "product_name"  { default = "ubuntu-2404-cis-l2" }
 variable "version"       { default = "1.0.0" }
 
 locals {
   ts       = formatdate("YYYYMMDD-hhmm", timestamp())
-  itype    = var.instance_type != "" ? var.instance_type : (var.arch == "arm64" ? "c7g.xlarge" : "c7i.xlarge")
+  itype    = var.instance_type != "" ? var.instance_type : (var.arch == "arm64" ? "c7g.2xlarge" : "c7i.2xlarge")
   ami_arch = var.arch == "arm64" ? "arm64" : "x86_64"
   bootmode = var.arch == "arm64" ? "uefi" : "uefi-preferred"
 }
