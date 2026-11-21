@@ -1,8 +1,9 @@
-name: Build & publish PUBLIC community AMI
+name: Quick build & publish PUBLIC AMI (~10 min)
 
 on:
-  schedule:
-    - cron: "30 3 5 * *"     # 5th of every month, 09:00 IST
+  workflow_run:                # runs automatically after each monthly base build
+    workflows: ["Build BASE AMI (monthly, private)"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       region:
@@ -16,12 +17,13 @@ permissions:
   id-token: write
   contents: read
 
-concurrency: public-ami
+concurrency: ami-build
 
 jobs:
   public-ami:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -30,8 +32,6 @@ jobs:
           aws-region: ${{ github.event.inputs.region || 'ap-south-1' }}
           role-duration-seconds: 18000
       - uses: hashicorp/setup-packer@main
-      - name: Install Ansible
-        run: pipx install --include-deps ansible-core
       - name: Build and make public
         run: |
           bash scripts/make-public-ami.sh \

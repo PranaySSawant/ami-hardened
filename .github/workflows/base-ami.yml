@@ -1,0 +1,41 @@
+name: Build BASE AMI (monthly, private)
+
+on:
+  schedule:
+    - cron: "30 3 5 * *"     # 5th of every month, 09:00 IST – quick public build runs right after
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Build region"
+        default: "ap-south-1"
+      from_ami:
+        description: "Optional: copy this existing hardened AMI as the base instead of building (bootstrap)"
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: ami-build
+
+jobs:
+  base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ github.event.inputs.region || 'ap-south-1' }}
+          role-duration-seconds: 18000
+      - uses: hashicorp/setup-packer@main
+      - name: Install Ansible
+        run: pipx install --include-deps ansible-core
+      - name: Build private base image
+        run: |
+          if [ -n "${{ github.event.inputs.from_ami }}" ]; then
+            bash scripts/make-base-ami.sh "${{ github.event.inputs.region || 'ap-south-1' }}" --from-ami "${{ github.event.inputs.from_ami }}"
+          else
+            bash scripts/make-base-ami.sh "${{ github.event.inputs.region || 'ap-south-1' }}"
+          fi
