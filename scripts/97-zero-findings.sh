@@ -96,8 +96,12 @@ rm -rf "$TK"
 if [ -d /run/systemd/system ] && ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1; then
   # upstream sshd refuses group-readable host keys (Ubuntu allows 0640 root:ssh_keys) -> 0600
   chown root:root /etc/ssh/ssh_host_*_key; chmod 0600 /etc/ssh/ssh_host_*_key
-  systemctl stop ssh.socket 2>/dev/null || true
-  systemctl restart ssh.service || true
+  systemctl stop ssh.socket ssh.service 2>/dev/null || true
+  # stop any leftover LISTENING sshd on :22 (old listeners survive KillMode=process);
+  # established sessions (the build tool's own connection) are not listeners and keep running
+  for pid in $(ss -Hltnp 'sport = :22' | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do kill "$pid" || true; done
+  sleep 1
+  systemctl start ssh.service || true
   sleep 2
   if ! systemctl is-active ssh.service; then
     journalctl -u ssh.service -n 30 --no-pager || true
