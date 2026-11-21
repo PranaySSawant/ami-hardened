@@ -13,6 +13,10 @@ export DEBIAN_FRONTEND=noninteractive
 OPENSSH_VER=${OPENSSH_VER:-10.6p2}
 GO_VER=${GO_VER:-1.27.4}
 W=/root/zf-build
+# idempotent: skip what is already at the target version (quick builds from an up-to-date base)
+NEED_SSH=1; ssh -V 2>&1 | grep -q "OpenSSH_${OPENSSH_VER}" && NEED_SSH=0
+NEED_SSM=0; [ -x /usr/bin/amazon-ssm-agent ] && ! grep -a -q "go${GO_VER}" /usr/bin/amazon-ssm-agent && NEED_SSM=1
+if [ "$NEED_SSH$NEED_SSM" = 00 ]; then echo "ZERO-FINDINGS: already up to date ($(ssh -V 2>&1))"; exit 0; fi
 rm -rf "$W"; mkdir -p "$W"; cd "$W"
 
 BDEPS="build-essential zlib1g-dev libssl-dev libpam0g-dev git"
@@ -22,6 +26,7 @@ apt-get update -qq
 apt-get install -y --no-install-recommends $BDEPS
 
 ############################ 1. OpenSSH (upstream) ############################
+if [ "$NEED_SSH" = 1 ]; then
 wget -q "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VER}.tar.gz"
 tar xzf "openssh-${OPENSSH_VER}.tar.gz"
 cd "openssh-${OPENSSH_VER}"
@@ -68,9 +73,10 @@ if [ -d /run/systemd/system ] && ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1; the
   sleep 2; systemctl is-active ssh.service
 fi
 ssh -V 2>&1 | grep -q "OpenSSH_${OPENSSH_VER}" || { echo "ssh is not ${OPENSSH_VER}"; exit 1; }
+fi
 
 ############################ 2. SSM Agent (latest Go) ##########################
-if [ -x /usr/bin/amazon-ssm-agent ]; then
+if [ "$NEED_SSM" = 1 ]; then
   SSM_VER=$(dpkg-query -W -f='${Version}' amazon-ssm-agent | cut -d- -f1)
   GOTGZ="go${GO_VER}.linux-amd64.tar.gz"
   wget -q "https://go.dev/dl/${GOTGZ}"

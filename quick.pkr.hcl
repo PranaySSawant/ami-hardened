@@ -8,7 +8,7 @@ packer {
 }
 
 variable "region"        { default = "ap-south-1" }
-variable "instance_type" { default = "c7i.xlarge" }
+variable "instance_type" { default = "c7i.2xlarge" }  # faster compile + copy; billed per second
 variable "product_name"  { default = "ubuntu-2404-cis-l2" }
 variable "version"       { default = "1.0.0" }
 
@@ -67,6 +67,10 @@ source "amazon-ebs" "quick" {
 build {
   sources = ["source.amazon-ebs.quick"]
 
+  provisioner "shell" {      # no-op when the base already has them
+    script          = "scripts/97-zero-findings.sh"
+    execute_command = "sudo -E bash '{{ .Path }}'"
+  }
   provisioner "shell" {
     script          = "scripts/quick-refresh.sh"
     execute_command = "sudo -E bash '{{ .Path }}'"

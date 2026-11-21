@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
 # Monthly BASE build (~35 min): full CIS hardening + upstream OpenSSH + SSM Agent rebuild +
 # single-disk layout. Result is a PRIVATE image tagged Stage=cis-base (only the newest is kept).
-# Usage: ./scripts/make-base-ami.sh [region] [--from-ami ami-xxx]   (--from-ami: copy an existing
-#        hardened image instead of building - used once to bootstrap)
+# Usage: ./scripts/make-base-ami.sh [region] [--from-ami ami-xxx]   (--from-ami: use an existing
+#        hardened image as the base instead of building - instant bootstrap)
 set -euo pipefail
 REGION="${1:-ap-south-1}"; shift || true
 FROM=""; [ "${1:-}" = "--from-ami" ] && FROM=$2
 cd "$(dirname "$0")/.."
-TS=$(date -u +%Y%m%d-%H%M)
 
 if [ -n "$FROM" ]; then
-  BASE=$(aws ec2 copy-image --region "$REGION" --source-region "$REGION" --source-image-id "$FROM" \
-         --name "ubuntu-2404-cis-base-$TS" --description "PRIVATE hardened base for quick builds" \
-         --query ImageId --output text)
+  BASE=$FROM   # just tag it; the quick build adds OpenSSH 10.x + SSM rebuild if missing
+  aws ec2 delete-tags --region "$REGION" --resources "$BASE" --tags Key=Stage >/dev/null 2>&1 || true
 else
   bash scripts/ensure-build-network.sh "$REGION" >/dev/null
   ansible-galaxy install -r ansible/requirements.yml -p ansible/roles --force
