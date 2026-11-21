@@ -63,6 +63,12 @@ cd "$W"
 if [ -d /run/systemd/system ]; then
   mkdir -p /etc/systemd/system/ssh.service.d
   cat > /etc/systemd/system/ssh.service.d/10-upstream-openssh.conf <<'EOF'
+[Unit]
+# never pull in Ubuntu's ssh.socket (upstream sshd binds port 22 itself)
+Requires=
+Wants=
+After=network.target auditd.service
+
 [Service]
 Type=exec
 RuntimeDirectory=sshd
@@ -88,9 +94,16 @@ rm -rf "$TK"
 # switch the running listener to the new sshd now (open sessions stay connected), so the next
 # connections - including the build tool's own - use the upstream binary
 if [ -d /run/systemd/system ] && ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1; then
+  # upstream sshd refuses group-readable host keys (Ubuntu allows 0640 root:ssh_keys) -> 0600
+  chown root:root /etc/ssh/ssh_host_*_key; chmod 0600 /etc/ssh/ssh_host_*_key
   systemctl stop ssh.socket 2>/dev/null || true
-  systemctl restart ssh.service
-  sleep 2; systemctl is-active ssh.service
+  systemctl restart ssh.service || true
+  sleep 2
+  if ! systemctl is-active ssh.service; then
+    journalctl -u ssh.service -n 30 --no-pager || true
+    /usr/sbin/sshd -t || true
+    exit 1
+  fi
 fi
 ssh -V 2>&1 | grep -q "OpenSSH_${OPENSSH_VER}" || { echo "ssh is not ${OPENSSH_VER}"; exit 1; }
 fi
