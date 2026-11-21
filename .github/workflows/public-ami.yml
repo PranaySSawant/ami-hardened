@@ -18,7 +18,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 
 jobs:
@@ -49,3 +49,11 @@ jobs:
             "${{ github.event.inputs.region || 'ap-south-1' }}" \
             "$(date -u +%Y.%m.%d)" \
             ${{ github.event.inputs.extra_regions }}
+      - name: Save latest image ID in the repo
+        if: success()
+        run: |
+          git config user.name "ami-bot"; git config user.email "ami-bot@users.noreply.github.com"
+          git add latest-images.json
+          git diff --cached --quiet && exit 0
+          git commit -m "latest image (${{ matrix.arch }}): $(jq -c . latest-images.json)"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done

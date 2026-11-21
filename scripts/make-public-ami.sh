@@ -15,7 +15,13 @@ need aws; need jq; need packer
 echo "==> Checking build network in $REGION"
 bash scripts/ensure-build-network.sh "$REGION" >/dev/null
 
-BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
+# 1) last image recorded in the repo (latest-images.json), if it still exists
+BASE=$(jq -r --arg r "$REGION" --arg a "$ARCH" '.[$r][$a].ami // empty' latest-images.json 2>/dev/null || true)
+if [ -n "$BASE" ] && ! aws ec2 describe-images --region "$REGION" --image-ids "$BASE" --query 'Images[0].State' --output text 2>/dev/null | grep -q available; then
+  BASE=""
+fi
+# 2) otherwise the newest hardened image in the account
+[ -n "$BASE" ] || BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
        --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
 if [ "$BASE" = None ] || [ -z "$BASE" ]; then
   # no hardened image for this architecture yet -> build the base first (one-time, ~25 min)
@@ -42,6 +48,12 @@ publish() {   # region ami
 }
 
 publish "$REGION" "$AMI"
+
+# record it in the repo: the next quick build starts from this image
+NAME=$(aws ec2 describe-images --region "$REGION" --image-ids "$AMI" --query 'Images[0].Name' --output text)
+[ -f latest-images.json ] || echo '{}' > latest-images.json
+jq --arg r "$REGION" --arg a "$ARCH" --arg ami "$AMI" --arg n "$NAME" --arg d "$(date -u +%Y-%m-%dT%H:%MZ)" \
+   '.[$r][$a] = {ami:$ami, name:$n, built:$d}' latest-images.json > latest-images.json.tmp && mv latest-images.json.tmp latest-images.json
 
 # keep only the newest public image in this region
 for old in $(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=public Name=architecture,Values=$AWSARCH \
