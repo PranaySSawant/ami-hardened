@@ -81,7 +81,8 @@ for r in json.load(sys.stdin):
         if f['filename']=='${GOTGZ}': print(f['sha256'])")
   echo "${SUM}  ${GOTGZ}" | sha256sum -c -
   tar -C "$W" -xzf "$GOTGZ"
-  export PATH="$W/go/bin:$PATH" GOTOOLCHAIN=local GOFLAGS=-mod=vendor GOPATH="$W/gopath" GOCACHE="$W/gocache"
+  mkdir -p "$W/gotmp"   # /tmp is noexec (CIS) -> go run needs an exec-able temp dir
+  export PATH="$W/go/bin:$PATH" GOTOOLCHAIN=local GOFLAGS=-mod=vendor GOPATH="$W/gopath" GOCACHE="$W/gocache" GOTMPDIR="$W/gotmp"
   git clone -q --depth 1 -b "$SSM_VER" https://github.com/aws/amazon-ssm-agent "$W/ssm"
   cd "$W/ssm"
   go run agent/version/versiongenerator/version-gen.go
