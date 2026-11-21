@@ -160,32 +160,21 @@ All 29 openssh findings are fixed or not applicable on Ubuntu 24.04. To verify a
    ```bash
    sudo apt-get update && sudo apt-get install --only-upgrade -y openssh-server openssh-client && sudo systemctl restart ssh
    ```
-4. **Close them in Inspector** (for instances launched from this image) with a suppression rule that records
-   the reason. Review the rule after each Ubuntu OpenSSH update:
-   ```bash
-   aws inspector2 create-filter --action SUPPRESS --name ubuntu-openssh-vendor-fixed \
-     --reason "Fixed by Ubuntu in openssh 1:9.6p1-3ubuntu13.20 (USN backports); CVE-2026-123158 is musl/Alpine-only" \
-     --filter-criteria '{"vulnerabilityId":[{"comparison":"EQUALS","value":"CVE-2026-60002"},{"comparison":"EQUALS","value":"CVE-2024-6387"},{"comparison":"EQUALS","value":"CVE-2026-106553"},{"comparison":"EQUALS","value":"CVE-2026-106555"},{"comparison":"EQUALS","value":"CVE-2026-106583"},{"comparison":"EQUALS","value":"CVE-2026-123158"},{"comparison":"EQUALS","value":"CVE-2026-35385"},{"comparison":"EQUALS","value":"CVE-2026-35414"},{"comparison":"EQUALS","value":"CVE-2026-59999"},{"comparison":"EQUALS","value":"CVE-2026-60000"},{"comparison":"EQUALS","value":"CVE-2025-26465"},{"comparison":"EQUALS","value":"CVE-2025-26466"},{"comparison":"EQUALS","value":"CVE-2026-106552"},{"comparison":"EQUALS","value":"CVE-2026-106585"},{"comparison":"EQUALS","value":"CVE-2026-106586"},{"comparison":"EQUALS","value":"CVE-2026-35387"},{"comparison":"EQUALS","value":"CVE-2026-59995"},{"comparison":"EQUALS","value":"CVE-2026-59996"},{"comparison":"EQUALS","value":"CVE-2026-59997"},{"comparison":"EQUALS","value":"CVE-2026-59998"},{"comparison":"EQUALS","value":"CVE-2026-60001"},{"comparison":"EQUALS","value":"CVE-2026-73282"},{"comparison":"EQUALS","value":"CVE-2025-32728"},{"comparison":"EQUALS","value":"CVE-2026-106582"},{"comparison":"EQUALS","value":"CVE-2026-106584"},{"comparison":"EQUALS","value":"CVE-2026-106587"},{"comparison":"EQUALS","value":"CVE-2026-35388"},{"comparison":"EQUALS","value":"CVE-2026-73281"},{"comparison":"EQUALS","value":"CVE-2026-73283"}]}'
-   ```
-
-**One script does it all (with rollback):** [`scripts/resolve-findings.sh`](scripts/resolve-findings.sh)
-
-```bash
-# in CloudShell only (nothing runs on any server): mark the 29 Ubuntu-fixed openssh CVEs as resolved
-./resolve-findings.sh inspector-resolve        # undo: ./resolve-findings.sh inspector-rollback
-./resolve-findings.sh status
-```
+4. **Close them in Inspector:** in the Inspector console go to **Suppression rules → Create rule**, add the CVE IDs
+   from the table below (Inspector allows 10 per rule, so 3 rules) and give the reason
+   "Fixed by Ubuntu in openssh 1:9.6p1-3ubuntu13.20". To undo, delete the rules. Review them after each Ubuntu
+   OpenSSH update.
 
 **What happens when you resolve all findings**
 
 | Step | What it changes | Effect on the scan | Risk | Rollback |
 |---|---|---|---|---|
-| `inspector-resolve` | Creates 3 Inspector suppression rules (`ubuntu-openssh-vendor-fixed-1..3`, Inspector allows 10 CVEs per rule) listing the 29 openssh CVEs, with the reason "fixed by Ubuntu" | The 29 openssh findings move to **Suppressed** for EC2 instances in this account and Region; the count drops to 1 (or 0 after a newer SSM Agent) | If a future openssh CVE has the same ID it stays hidden; review the rule after each Ubuntu OpenSSH update. It does not change any server | `inspector-rollback` deletes the rules and the findings show again |
+| Inspector suppression rules for the 29 openssh CVEs | Marks them **Suppressed** with the reason "fixed by Ubuntu" | The count drops to 1 (or 0 after a newer SSM Agent) for EC2 instances in this account and Region | A future openssh CVE with the same ID would stay hidden; review the rules after each Ubuntu OpenSSH update. No server is changed | Delete the rules; the findings show again |
 
 - Nothing is uninstalled and no security setting is weakened: the CIS score stays 258/260.
 - The suppression rule only hides findings in **your** Inspector account. The AMI's own scan page may still show
   the raw count, and other accounts that launch this image see it until they add the same rule.
-- Nothing is installed or run on any server; servers stay patched through Ubuntu's automatic security updates.
+- No script is added and nothing is run on any server; servers stay patched through Ubuntu's automatic security updates.
 
 **For the AMI itself**
 
@@ -194,8 +183,8 @@ All 29 openssh findings are fixed or not applicable on Ubuntu 24.04. To verify a
 - The scan page of the AMI shows **30 findings**. They can only drop on that page by rebuilding the image:
   the monthly rebuild (5th of each month) picks up new Ubuntu fixes and a newer SSM Agent, which clears the 1 Go finding.
 - The 29 openssh findings will keep showing on the AMI scan page, because the scanner reads only the upstream
-  version `9.6p1`. Resolving them means documenting them (this README) and suppressing them in Inspector with
-  `inspector-resolve`; nothing in the image changes.
+  version `9.6p1`. Resolving them means documenting them (this README) and suppressing them in Inspector;
+  nothing in the image changes.
 - If all findings are resolved: **0 open vulnerabilities, 29 suppressed as fixed by Ubuntu, 1 cleared by the
   next SSM Agent release.** SSH, SSM, CIS 258/260 and all other features keep working.
 
