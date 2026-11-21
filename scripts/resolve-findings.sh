@@ -95,22 +95,30 @@ server_rollback() {
 
 inspector_resolve() {
   command -v aws >/dev/null || { echo "needs AWS CLI (run in CloudShell)"; exit 1; }
-  local vals=""; for c in $OPENSSH_CVES; do vals+="{\"comparison\":\"EQUALS\",\"value\":\"$c\"},"; done
-  local crit="{\"vulnerabilityId\":[${vals%,}]}"
-  local arn; arn=$(aws inspector2 list-filters --region "$REGION" --query "filters[?name=='$FILTER_NAME'].arn" --output text)
-  if [ -n "$arn" ] && [ "$arn" != None ]; then log "rule already exists: $arn"; return; fi
-  arn=$(aws inspector2 create-filter --region "$REGION" --name "$FILTER_NAME" --action SUPPRESS \
-        --reason "Fixed by Ubuntu in openssh $MIN_OPENSSH (security backports); CVE-2026-123158 affects musl/Alpine only" \
-        --filter-criteria "$crit" --query arn --output text)
-  log "created Inspector suppression rule: $arn  (29 openssh CVEs marked resolved)"
+  # Inspector allows max 10 values per criterion -> one rule per 10 CVEs
+  local all=($OPENSSH_CVES) i=0 n=1
+  while [ $i -lt ${#all[@]} ]; do
+    local name="$FILTER_NAME-$n" vals="" c
+    for c in "${all[@]:$i:10}"; do vals+="{\"comparison\":\"EQUALS\",\"value\":\"$c\"},"; done
+    local arn; arn=$(aws inspector2 list-filters --region "$REGION" --query "filters[?name=='$name'].arn" --output text)
+    if [ -n "$arn" ] && [ "$arn" != None ]; then log "rule $name already exists"
+    else
+      arn=$(aws inspector2 create-filter --region "$REGION" --name "$name" --action SUPPRESS \
+            --reason "Fixed by Ubuntu in openssh $MIN_OPENSSH (security backports); CVE-2026-123158 affects musl/Alpine only" \
+            --filter-criteria "{\"vulnerabilityId\":[${vals%,}]}" --query arn --output text)
+      log "created $name: $arn"
+    fi
+    i=$((i+10)); n=$((n+1))
+  done
+  log "29 openssh CVEs marked resolved (suppressed) in Inspector, region $REGION"
 }
 
 inspector_rollback() {
   command -v aws >/dev/null || { echo "needs AWS CLI (run in CloudShell)"; exit 1; }
-  local arn; arn=$(aws inspector2 list-filters --region "$REGION" --query "filters[?name=='$FILTER_NAME'].arn" --output text)
-  if [ -z "$arn" ] || [ "$arn" = None ]; then log "no rule named $FILTER_NAME - nothing to roll back"; return; fi
-  aws inspector2 delete-filter --region "$REGION" --arn "$arn" >/dev/null
-  log "deleted Inspector suppression rule $arn - the 29 openssh findings show again"
+  local arns; arns=$(aws inspector2 list-filters --region "$REGION" --query "filters[?starts_with(name,'$FILTER_NAME')].arn" --output text)
+  if [ -z "$arns" ] || [ "$arns" = None ]; then log "no $FILTER_NAME rules - nothing to roll back"; return; fi
+  for a in $arns; do aws inspector2 delete-filter --region "$REGION" --arn "$a" >/dev/null && log "deleted $a"; done
+  log "the 29 openssh findings show again"
 }
 
 status_server() {
@@ -128,6 +136,6 @@ case "$ACTION" in
   status)
     command -v dpkg-query >/dev/null && status_server
     command -v aws >/dev/null && aws inspector2 list-filters --region "$REGION" \
-      --query "filters[?name=='$FILTER_NAME'].[name,action,arn]" --output text || true ;;
+      --query "filters[?starts_with(name,'$FILTER_NAME')].[name,action]" --output text || true ;;
   *) sed -n '2,15p' "$0"; exit 2 ;;
 esac
