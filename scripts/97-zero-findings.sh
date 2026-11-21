@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Build-time only (runs while the AMI is being built; nothing is added to the image).
+# Goal: 0 scanner findings for the two components that scanners flag by *upstream* version:
+#   1. OpenSSH  -> latest upstream release compiled from source (Ubuntu's 9.6p1 is patched but
+#                  scanners only read "9.6p1"); Ubuntu openssh packages are held so apt never
+#                  overwrites it. The monthly rebuild picks up each new OpenSSH release.
+#   2. SSM Agent -> the same agent release rebuilt with the latest Go toolchain (the official
+#                  binaries embed an older Go standard library).
+# All compilers, sources and the Go toolchain are removed again before the image is captured.
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+OPENSSH_VER=${OPENSSH_VER:-10.6p2}
+GO_VER=${GO_VER:-1.27.4}
+W=/root/zf-build
+rm -rf "$W"; mkdir -p "$W"; cd "$W"
+
+BDEPS="build-essential zlib1g-dev libssl-dev libpam0g-dev git"
+NEW_BDEPS=""
+for p in $BDEPS; do dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | grep -q '^ii' || NEW_BDEPS="$NEW_BDEPS $p"; done
+apt-get update -qq
+apt-get install -y --no-install-recommends $BDEPS
+
+############################ 1. OpenSSH (upstream) ############################
+wget -q "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VER}.tar.gz"
+tar xzf "openssh-${OPENSSH_VER}.tar.gz"
+cd "openssh-${OPENSSH_VER}"
+./configure --prefix=/usr --sysconfdir=/etc/ssh --libexecdir=/usr/lib/openssh \
+  --with-pam --with-privsep-path=/run/sshd --with-pid-dir=/run \
+  --with-default-path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  --with-mantype=man --disable-strip
+make -j"$(nproc)"
+# keep Ubuntu's packages registered but never let apt overwrite the upstream binaries
+apt-mark hold openssh-server openssh-client openssh-sftp-server 2>/dev/null || true
+cp -a /etc/ssh/sshd_config /etc/ssh/sshd_config.zf-keep 2>/dev/null || true
+make install-nokeys
+[ -f /etc/ssh/sshd_config.zf-keep ] && mv -f /etc/ssh/sshd_config.zf-keep /etc/ssh/sshd_config
+cd "$W"
+
+# Upstream sshd does not support Ubuntu's ssh.socket activation -> run ssh.service directly
+if [ -d /run/systemd/system ]; then
+  mkdir -p /etc/systemd/system/ssh.service.d
+  cat > /etc/systemd/system/ssh.service.d/10-upstream-openssh.conf <<'EOF'
+[Service]
+Type=exec
+RuntimeDirectory=sshd
+RuntimeDirectoryMode=0755
+ExecStartPre=
+ExecStartPre=/usr/sbin/sshd -t
+ExecStart=
+ExecStart=/usr/sbin/sshd -D $SSHD_OPTS
+EOF
+  systemctl daemon-reload
+  systemctl disable ssh.socket 2>/dev/null || true
+  systemctl mask ssh.socket 2>/dev/null || true
+  systemctl enable ssh.service
+fi
+mkdir -p /run/sshd
+# host keys may be absent at build time (they are regenerated at first boot) -> test with temp keys
+TK=$(mktemp -d); ssh-keygen -q -t ed25519 -N '' -f "$TK/k"
+/usr/sbin/sshd -t -h "$TK/k"
+rm -rf "$TK"
+ssh -V 2>&1 | grep -q "OpenSSH_${OPENSSH_VER}" || { echo "ssh is not ${OPENSSH_VER}"; exit 1; }
+
+############################ 2. SSM Agent (latest Go) ##########################
+if [ -x /usr/bin/amazon-ssm-agent ]; then
+  SSM_VER=$(dpkg-query -W -f='${Version}' amazon-ssm-agent | cut -d- -f1)
+  GOTGZ="go${GO_VER}.linux-amd64.tar.gz"
+  wget -q "https://go.dev/dl/${GOTGZ}"
+  SUM=$(wget -qO- "https://go.dev/dl/?mode=json&include=all" | python3 -c "
+import json,sys
+for r in json.load(sys.stdin):
+    for f in r['files']:
+        if f['filename']=='${GOTGZ}': print(f['sha256'])")
+  echo "${SUM}  ${GOTGZ}" | sha256sum -c -
+  tar -C "$W" -xzf "$GOTGZ"
+  export PATH="$W/go/bin:$PATH" GOTOOLCHAIN=local GOFLAGS=-mod=vendor GOPATH="$W/gopath" GOCACHE="$W/gocache"
+  git clone -q --depth 1 -b "$SSM_VER" https://github.com/aws/amazon-ssm-agent "$W/ssm"
+  cd "$W/ssm"
+  go run agent/version/versiongenerator/version-gen.go
+  b() { go build -ldflags '-s -w' -buildmode=pie -trimpath "$@"; }
+  mkdir -p out
+  b -o out/amazon-ssm-agent     core/agent.go core/agent_unix.go core/agent_parser.go
+  b -o out/ssm-agent-worker     agent/agent.go agent/agent_unix.go agent/agent_parser.go
+  b -o out/ssm-cli              agent/cli-main/cli-main.go
+  b -o out/ssm-document-worker  agent/framework/processor/executer/outofproc/worker/main.go
+  b -o out/ssm-session-logger   agent/session/logging/main.go
+  b -o out/ssm-session-worker   agent/framework/processor/executer/outofproc/sessionworker/main.go
+  for f in out/*; do
+    go version "$f" | grep -q "go${GO_VER}" || { echo "bad build $f"; exit 1; }
+    install -m 0755 "$f" "/usr/bin/$(basename "$f")"
+  done
+  /usr/bin/amazon-ssm-agent -version || true
+  cd "$W"
+fi
+
+############################ cleanup ###########################################
+cd /
+rm -rf "$W"
+# shellcheck disable=SC2086
+[ -n "$NEW_BDEPS" ] && apt-get purge -y $NEW_BDEPS
+apt-get autoremove -y --purge
+echo "ZERO-FINDINGS: $(ssh -V 2>&1); SSM agent rebuilt with go${GO_VER}"

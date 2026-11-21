@@ -1,0 +1,35 @@
+name: Test zero-findings build step
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install official SSM Agent (like the AMI)
+        run: |
+          wget -q https://s3.ap-south-1.amazonaws.com/amazon-ssm-ap-south-1/latest/debian_amd64/amazon-ssm-agent.deb
+          sudo dpkg -i amazon-ssm-agent.deb
+          dpkg-query -W amazon-ssm-agent
+      - name: Run scripts/97-zero-findings.sh
+        run: sudo bash scripts/97-zero-findings.sh
+      - name: Smoke test - real SSH login to upstream sshd
+        run: |
+          set -x
+          ssh -V; /usr/sbin/sshd -V 2>&1 | head -1 || true
+          sudo ssh-keygen -A
+          ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/zf
+          cat ~/.ssh/zf.pub >> ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys
+          sudo mkdir -p /run/sshd
+          sudo /usr/sbin/sshd -t
+          sudo /usr/sbin/sshd -p 2222 -o PidFile=/tmp/zf.pid -o AllowUsers=$USER
+          sleep 2
+          ssh -i ~/.ssh/zf -p 2222 -o StrictHostKeyChecking=no -o BatchMode=yes $USER@127.0.0.1 'echo SSH_LOGIN_OK; ssh -V'
+      - name: Smoke test - SSM binaries
+        run: |
+          for f in amazon-ssm-agent ssm-agent-worker ssm-cli ssm-document-worker ssm-session-logger ssm-session-worker; do
+            echo "$f: $(strings /usr/bin/$f | grep -m1 -oE '^go1\.[0-9]+\.[0-9]+')"
+          done
+          /usr/bin/amazon-ssm-agent -version
+          sudo systemctl restart amazon-ssm-agent; sleep 3; systemctl is-active amazon-ssm-agent || sudo journalctl -u amazon-ssm-agent -n 20 --no-pager
