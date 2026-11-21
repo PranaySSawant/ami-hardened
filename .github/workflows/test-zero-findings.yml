@@ -3,13 +3,16 @@ on:
   workflow_dispatch:
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Install official SSM Agent (like the AMI)
         run: |
-          wget -q https://s3.ap-south-1.amazonaws.com/amazon-ssm-ap-south-1/latest/debian_amd64/amazon-ssm-agent.deb
+          wget -q https://s3.ap-south-1.amazonaws.com/amazon-ssm-ap-south-1/latest/debian_$(dpkg --print-architecture)/amazon-ssm-agent.deb
           sudo dpkg -i amazon-ssm-agent.deb
           dpkg-query -W amazon-ssm-agent
       - name: Run scripts/97-zero-findings.sh
@@ -24,6 +27,7 @@ jobs:
           cat ~/.ssh/zf.pub >> ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys
           sudo mkdir -p /run/sshd
           sudo /usr/sbin/sshd -t
+          D=$(sudo /usr/sbin/sshd -T); grep -x 'gssapiauthentication no' <<<"$D"; grep -x 'permitrootlogin .*' <<<"$D"
           sudo /usr/sbin/sshd -p 2222 -o PidFile=/tmp/zf.pid -o AllowUsers=$USER
           sleep 2
           ssh -i ~/.ssh/zf -p 2222 -o StrictHostKeyChecking=no -o BatchMode=yes $USER@127.0.0.1 'echo SSH_LOGIN_OK; ssh -V'

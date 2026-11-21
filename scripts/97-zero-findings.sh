@@ -15,11 +15,13 @@ GO_VER=${GO_VER:-1.27.4}
 W=/root/zf-build
 # idempotent: skip what is already at the target version (quick builds from an up-to-date base)
 NEED_SSH=1; ssh -V 2>&1 | grep -q "OpenSSH_${OPENSSH_VER}" && NEED_SSH=0
+# rebuild an older 10.x build that was compiled without GSSAPI (CIS 5.1.x needs GSSAPIAuthentication)
+ldd /usr/lib/openssh/sshd-auth 2>/dev/null | grep -q gssapi_krb5 || NEED_SSH=1
 NEED_SSM=0; [ -x /usr/bin/amazon-ssm-agent ] && ! grep -a -q "go${GO_VER}" /usr/bin/amazon-ssm-agent && NEED_SSM=1
 if [ "$NEED_SSH$NEED_SSM" = 00 ]; then echo "ZERO-FINDINGS: already up to date ($(ssh -V 2>&1))"; exit 0; fi
 rm -rf "$W"; mkdir -p "$W"; cd "$W"
 
-BDEPS="build-essential zlib1g-dev libssl-dev libpam0g-dev git"
+BDEPS="build-essential zlib1g-dev libssl-dev libpam0g-dev libkrb5-dev git"
 NEW_BDEPS=""
 for p in $BDEPS; do dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | grep -q '^ii' || NEW_BDEPS="$NEW_BDEPS $p"; done
 apt-get update -qq
@@ -46,7 +48,7 @@ s = s.replace(anchor, helper + anchor, 1)
 open(p, 'w').write(s)
 PY
 ./configure --prefix=/usr --sysconfdir=/etc/ssh --libexecdir=/usr/lib/openssh \
-  --with-pam --with-privsep-path=/run/sshd --with-pid-dir=/run \
+  --with-pam --with-kerberos5=/usr --with-privsep-path=/run/sshd --with-pid-dir=/run \
   --with-default-path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   --with-mantype=man --disable-strip
 make -j"$(nproc)"
@@ -79,7 +81,9 @@ mkdir -p /run/sshd
 # host keys may be absent at build time (they are regenerated at first boot) -> test with temp keys
 TK=$(mktemp -d); ssh-keygen -q -t ed25519 -N '' -f "$TK/k"
 /usr/sbin/sshd -t -h "$TK/k"
-/usr/sbin/sshd -T -h "$TK/k" | grep -qx "permitrootlogin no" || { echo "sshd -T output not lowercase/compatible"; exit 1; }
+DUMP=$(/usr/sbin/sshd -T -h "$TK/k")    # capture first (grep -q + pipefail = SIGPIPE)
+grep -qx "permitrootlogin no" <<<"$DUMP" || { echo "sshd -T output not lowercase/compatible"; exit 1; }
+grep -qx "gssapiauthentication no" <<<"$DUMP" || { echo "GSSAPI support missing"; exit 1; }
 rm -rf "$TK"
 # switch the running listener to the new sshd now (open sessions stay connected), so the next
 # connections - including the build tool's own - use the upstream binary
