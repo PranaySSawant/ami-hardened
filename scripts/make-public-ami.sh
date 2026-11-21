@@ -17,7 +17,13 @@ bash scripts/ensure-build-network.sh "$REGION" >/dev/null
 
 BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
        --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
-[ "$BASE" != None ] || { echo "No hardened image (tag Stage=cis-base or public). Run the 'Build BASE AMI' workflow first."; exit 1; }
+if [ "$BASE" = None ] || [ -z "$BASE" ]; then
+  # no hardened image for this architecture yet -> build the base first (one-time, ~25 min)
+  echo "==> No hardened $ARCH image found - building the base first"
+  ARCH=$ARCH bash scripts/make-base-ami.sh "$REGION"
+  BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
+         --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
+fi
 echo "==> Quick build ($ARCH) in $REGION (v$VERSION) from base $BASE – about 10 min"
 packer init quick.pkr.hcl
 packer build -color=false -var "region=$REGION" -var "version=$VERSION" -var "source_ami=$BASE" -var "arch=$ARCH" quick.pkr.hcl

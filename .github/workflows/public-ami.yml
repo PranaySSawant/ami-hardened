@@ -30,7 +30,7 @@ jobs:
     concurrency: ami-build-${{ matrix.arch }}
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -39,6 +39,8 @@ jobs:
           aws-region: ${{ github.event.inputs.region || 'ap-south-1' }}
           role-duration-seconds: 18000
       - uses: hashicorp/setup-packer@main
+      - name: Install Ansible (only used if a base image must be built first)
+        run: pipx install --include-deps ansible-core
       - name: Build and make public
         env:
           ARCH: ${{ matrix.arch }}
