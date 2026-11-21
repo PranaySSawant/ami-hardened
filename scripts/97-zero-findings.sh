@@ -30,6 +30,21 @@ if [ "$NEED_SSH" = 1 ]; then
 wget -q "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VER}.tar.gz"
 tar xzf "openssh-${OPENSSH_VER}.tar.gz"
 cd "openssh-${OPENSSH_VER}"
+# Compatibility patch: OpenSSH 10.x prints "sshd -T" keywords in CamelCase; Ubuntu's sshd, the CIS
+# benchmark audit commands and CIS scanners expect lowercase (e.g. "permitrootlogin no").
+python3 - <<'PY'
+p = 'servconf.c'; s = open(p).read()
+old = "\t\t\treturn(keywords[i].name);\n\treturn \"UNKNOWN\";"
+assert old in s, "servconf.c layout changed"
+s = s.replace(old, "\t\t\treturn(lc_kw(keywords[i].name));\n\treturn \"UNKNOWN\";", 1)
+helper = ("static const char *\nlc_kw(const char *s)\n{\n\tstatic char b[64];\n\tsize_t i;\n\n"
+          "\tfor (i = 0; s[i] != '\\0' && i < sizeof(b) - 1; i++)\n\t\tb[i] = tolower((u_char)s[i]);\n"
+          "\tb[i] = '\\0';\n\treturn b;\n}\n\n")
+anchor = "static const char *\nlookup_opcode_name(ServerOpCodes code)"
+assert anchor in s
+s = s.replace(anchor, helper + anchor, 1)
+open(p, 'w').write(s)
+PY
 ./configure --prefix=/usr --sysconfdir=/etc/ssh --libexecdir=/usr/lib/openssh \
   --with-pam --with-privsep-path=/run/sshd --with-pid-dir=/run \
   --with-default-path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
@@ -64,6 +79,7 @@ mkdir -p /run/sshd
 # host keys may be absent at build time (they are regenerated at first boot) -> test with temp keys
 TK=$(mktemp -d); ssh-keygen -q -t ed25519 -N '' -f "$TK/k"
 /usr/sbin/sshd -t -h "$TK/k"
+/usr/sbin/sshd -T -h "$TK/k" | grep -qx "permitrootlogin no" || { echo "sshd -T output not lowercase/compatible"; exit 1; }
 rm -rf "$TK"
 # switch the running listener to the new sshd now (open sessions stay connected), so the next
 # connections - including the build tool's own - use the upstream binary

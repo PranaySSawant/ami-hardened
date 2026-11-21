@@ -6,9 +6,9 @@ export DEBIAN_FRONTEND=noninteractive
 # --- Verify effective SSH policy (set in 00-cis-hardening.conf) ---
 sshd -t
 SSHD_EFF=$(sshd -T -C user=ubuntu,host=x,addr=127.0.0.1)   # capture first: grep -q + pipefail = SIGPIPE false failure
-grep -qx 'permitrootlogin no'        <<<"$SSHD_EFF"
-grep -qx 'passwordauthentication no' <<<"$SSHD_EFF"
-grep -q  '^ciphers '                 <<<"$SSHD_EFF"
+grep -qix 'permitrootlogin no'       <<<"$SSHD_EFF"
+grep -qix 'passwordauthentication no' <<<"$SSHD_EFF"
+grep -qi '^ciphers '                 <<<"$SSHD_EFF"
 ! grep -q 'chacha20'                 <<<"$SSHD_EFF"
 echo "SSH policy verified"
 
