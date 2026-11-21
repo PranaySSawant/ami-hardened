@@ -8,23 +8,27 @@ packer {
 }
 
 variable "region"        { default = "ap-south-1" }
-variable "instance_type" { default = "c7i.2xlarge" }  # faster compile + copy; billed per second
+variable "instance_type" { default = "" }   # empty = c7i.2xlarge (amd64) / c7g.2xlarge (arm64)
+variable "arch"          { default = "amd64" }
 variable "product_name"  { default = "ubuntu-2404-cis-l2" }
 variable "version"       { default = "1.0.0" }
 variable "source_ami"    { type = string }   # last public build or monthly base
 
-locals { ts = formatdate("YYYYMMDD-hhmm", timestamp()) }
+locals {
+  ts    = formatdate("YYYYMMDD-hhmm", timestamp())
+  itype = var.instance_type != "" ? var.instance_type : (var.arch == "arm64" ? "c7g.2xlarge" : "c7i.2xlarge")
+}
 
 source "amazon-ebs" "quick" {
   region        = var.region
-  instance_type = var.instance_type
+  instance_type = local.itype
   ssh_username  = "ubuntu"
   ssh_timeout   = "10m"
   temporary_key_pair_type = "ed25519"
 
   source_ami = var.source_ami   # newest hardened image, picked by scripts/make-public-ami.sh
 
-  ami_name        = "${var.product_name}-${var.version}-amd64-${local.ts}"
+  ami_name        = "${var.product_name}-${var.version}-${var.arch}-${local.ts}"
   ami_description = "Ubuntu 24.04 LTS hardened to CIS Level 1 + Level 2 Server (v1.0.0)"
   subnet_filter {
     filters   = { "tag:Name" = "packer-build" }

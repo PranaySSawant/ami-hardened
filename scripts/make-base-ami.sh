@@ -7,6 +7,7 @@ set -euo pipefail
 REGION="${1:-ap-south-1}"; shift || true
 FROM=""; [ "${1:-}" = "--from-ami" ] && FROM=$2
 cd "$(dirname "$0")/.."
+ARCH=${ARCH:-amd64}; [ "$ARCH" = arm64 ] && AWSARCH=arm64 || AWSARCH=x86_64
 
 if [ -n "$FROM" ]; then
   BASE=$FROM   # just tag it; the quick build adds OpenSSH 10.x + SSM rebuild if missing
@@ -16,7 +17,7 @@ else
   ansible-galaxy install -r ansible/requirements.yml -p ansible/roles --force
   ansible-galaxy collection install community.general ansible.posix
   packer init ubuntu2404-cis.pkr.hcl
-  packer build -color=false -var "region=$REGION" -var "product_name=ubuntu-2404-cis-base" \
+  packer build -color=false -var "region=$REGION" -var "arch=$ARCH" -var "product_name=ubuntu-2404-cis-base" \
     -var "version=$(date -u +%Y.%m.%d)" ubuntu2404-cis.pkr.hcl
   BASE=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
 fi
@@ -25,7 +26,7 @@ aws ec2 create-tags --region "$REGION" --resources "$BASE" --tags Key=Stage,Valu
 echo "BASE (private): $BASE"
 
 # keep only the newest base image
-for old in $(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base \
+for old in $(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base Name=architecture,Values=$AWSARCH \
              --query "Images[?ImageId!='$BASE'].ImageId" --output text); do
   snaps=$(aws ec2 describe-images --region "$REGION" --image-ids "$old" --query 'Images[0].BlockDeviceMappings[].Ebs.SnapshotId' --output text)
   aws ec2 deregister-image --region "$REGION" --image-id "$old"

@@ -94,7 +94,7 @@ fi
 ############################ 2. SSM Agent (latest Go) ##########################
 if [ "$NEED_SSM" = 1 ]; then
   SSM_VER=$(dpkg-query -W -f='${Version}' amazon-ssm-agent | cut -d- -f1)
-  GOTGZ="go${GO_VER}.linux-amd64.tar.gz"
+  GOTGZ="go${GO_VER}.linux-$(dpkg --print-architecture).tar.gz"
   wget -q "https://go.dev/dl/${GOTGZ}"
   SUM=$(wget -qO- "https://go.dev/dl/?mode=json&include=all" | python3 -c "
 import json,sys

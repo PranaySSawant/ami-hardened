@@ -12,7 +12,7 @@ export DEBIAN_FRONTEND=noninteractive
 # Packages that must never be removed as a side effect
 PROTECT="openssh-server openssh-client amazon-ssm-agent ufw unattended-upgrades apparmor
 apparmor-utils auditd systemd systemd-timesyncd systemd-resolved lvm2 sudo libpam-pwquality
-rsyslog netplan.io wget python3 python3-apt python3-yaml grub-pc grub-efi-amd64-signed
+rsyslog netplan.io wget python3 python3-apt python3-yaml grub-pc grub-efi-amd64-signed grub-efi-arm64-signed grub-efi-arm64-bin
 shim-signed linux-image-aws gdisk dosfstools tar"
 
 # Keep every currently installed package: autoremove must not cascade

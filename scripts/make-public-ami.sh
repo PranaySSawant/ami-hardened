@@ -7,6 +7,7 @@ set -euo pipefail
 REGION="${1:-ap-south-1}"; VERSION="${2:-$(date -u +%Y.%m.%d)}"; shift $(( $# > 2 ? 2 : $# )) || true
 EXTRA_REGIONS=("$@")
 cd "$(dirname "$0")/.."
+ARCH=${ARCH:-amd64}; [ "$ARCH" = arm64 ] && AWSARCH=arm64 || AWSARCH=x86_64
 
 need() { command -v "$1" >/dev/null || { echo "Missing: $1"; exit 1; }; }
 need aws; need jq; need packer
@@ -14,12 +15,12 @@ need aws; need jq; need packer
 echo "==> Checking build network in $REGION"
 bash scripts/ensure-build-network.sh "$REGION" >/dev/null
 
-BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public \
+BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=cis-base,public Name=architecture,Values=$AWSARCH \
        --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
 [ "$BASE" != None ] || { echo "No hardened image (tag Stage=cis-base or public). Run the 'Build BASE AMI' workflow first."; exit 1; }
-echo "==> Quick build in $REGION (v$VERSION) from base $BASE – about 10 min"
+echo "==> Quick build ($ARCH) in $REGION (v$VERSION) from base $BASE – about 10 min"
 packer init quick.pkr.hcl
-packer build -color=false -var "region=$REGION" -var "version=$VERSION" -var "source_ami=$BASE" quick.pkr.hcl
+packer build -color=false -var "region=$REGION" -var "version=$VERSION" -var "source_ami=$BASE" -var "arch=$ARCH" quick.pkr.hcl
 AMI=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
 echo "==> Built $AMI"
 
@@ -37,7 +38,7 @@ publish() {   # region ami
 publish "$REGION" "$AMI"
 
 # keep only the newest public image in this region
-for old in $(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=public \
+for old in $(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=public Name=architecture,Values=$AWSARCH \
              --query "Images[?ImageId!='$AMI'].ImageId" --output text); do
   snaps=$(aws ec2 describe-images --region "$REGION" --image-ids "$old" --query 'Images[0].BlockDeviceMappings[].Ebs.SnapshotId' --output text)
   aws ec2 deregister-image --region "$REGION" --image-id "$old"

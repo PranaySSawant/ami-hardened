@@ -117,9 +117,15 @@ if [ -f /etc/default/grub.d/40-force-partuuid.cfg ]; then
   sed -i "s/^GRUB_FORCE_PARTUUID=.*/GRUB_FORCE_PARTUUID=$NEW_PARTUUID/" /etc/default/grub.d/40-force-partuuid.cfg
 fi
 update-initramfs -u -k all
-grub-install --target=i386-pc "$DISK"
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --uefi-secure-boot --no-nvram
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --uefi-secure-boot --no-nvram --removable
+if [ "\$(dpkg --print-architecture)" = arm64 ]; then
+  # Graviton: UEFI only
+  grub-install --target=arm64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --uefi-secure-boot --no-nvram
+  grub-install --target=arm64-efi --efi-directory=/boot/efi --uefi-secure-boot --no-nvram --removable
+else
+  grub-install --target=i386-pc "$DISK"
+  grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --uefi-secure-boot --no-nvram
+  grub-install --target=x86_64-efi --efi-directory=/boot/efi --uefi-secure-boot --no-nvram --removable
+fi
 update-grub
 CHROOT
 

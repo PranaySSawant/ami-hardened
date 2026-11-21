@@ -6,13 +6,16 @@ packer {
 }
 
 variable "region"        { default = "ap-south-1" }     # use us-east-1 for Marketplace ingestion
-variable "instance_type" { default = "c7i.xlarge" }  # build box only (~₹15/hr); buyers pick their own size
-variable "arch"          { default = "amd64" }          # amd64 | arm64 (use t4g.medium for arm64)
+variable "instance_type" { default = "" }            # empty = c7i.xlarge (amd64) / c7g.xlarge (arm64)
+variable "arch"          { default = "amd64" }          # amd64 | arm64 (Graviton)
 variable "product_name"  { default = "ubuntu-2404-cis-l2" }
 variable "version"       { default = "1.0.0" }
 
 locals {
-  ts = formatdate("YYYYMMDD-hhmm", timestamp())
+  ts       = formatdate("YYYYMMDD-hhmm", timestamp())
+  itype    = var.instance_type != "" ? var.instance_type : (var.arch == "arm64" ? "c7g.xlarge" : "c7i.xlarge")
+  ami_arch = var.arch == "arm64" ? "arm64" : "x86_64"
+  bootmode = var.arch == "arm64" ? "uefi" : "uefi-preferred"
 }
 
 # amazon-ebssurrogate: the AMI root is NOT the builder's disk but a second, freshly
@@ -20,7 +23,7 @@ locals {
 # This gives ONE disk with separate CIS partitions (scripts/96-single-disk.sh).
 source "amazon-ebssurrogate" "ubuntu" {
   region        = var.region
-  instance_type = var.instance_type
+  instance_type = local.itype
   ssh_username  = "ubuntu"
 
   source_ami_filter {
@@ -49,8 +52,8 @@ source "amazon-ebssurrogate" "ubuntu" {
   imds_support    = "v2.0"
 
   ami_virtualization_type = "hvm"
-  ami_architecture        = "x86_64"
-  boot_mode               = "uefi-preferred"   # GRUB installed for both UEFI and legacy BIOS
+  ami_architecture        = local.ami_arch
+  boot_mode               = local.bootmode     # x86: UEFI + legacy BIOS; Graviton: UEFI
 
   # Builder disk (throw-away)
   launch_block_device_mappings {

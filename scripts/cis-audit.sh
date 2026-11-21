@@ -23,7 +23,9 @@ fi
 
 # 2. Launch in the packer-build subnet (no inbound rules needed for SSM)
 SUBNET=$(bash "$(dirname "$0")/ensure-build-network.sh" "$REGION")
-IID=$(aws ec2 run-instances --region "$REGION" --image-id "$AMI" --instance-type t3.small \
+IARCH=$(aws ec2 describe-images --region "$REGION" --image-ids "$AMI" --query "Images[0].Architecture" --output text)
+if [ "$IARCH" = arm64 ]; then ITYPE=t4g.small; else ITYPE=t3.small; fi
+IID=$(aws ec2 run-instances --region "$REGION" --image-id "$AMI" --instance-type "$ITYPE" \
   --subnet-id "$SUBNET" --iam-instance-profile Name=$ROLE \
   --metadata-options HttpTokens=required \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=cis-audit-temp}]' \
@@ -43,8 +45,9 @@ CMD=$(cat <<'EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -q git >/dev/null
-URL=$(wget -qO- https://api.github.com/repos/goss-org/goss/releases/latest | grep -o 'https://[^"]*goss-linux-amd64"' | tr -d '"' | head -1)
-URL=${URL:-https://github.com/goss-org/goss/releases/download/v0.4.9/goss-linux-amd64}
+GA=$(dpkg --print-architecture)
+URL=$(wget -qO- https://api.github.com/repos/goss-org/goss/releases/latest | grep -o "https://[^\"]*goss-linux-${GA}\"" | tr -d '"' | head -1)
+URL=${URL:-https://github.com/goss-org/goss/releases/download/v0.4.9/goss-linux-${GA}}
 echo "goss url: $URL"
 wget -q "$URL" -O /usr/local/bin/goss
 chmod 755 /usr/local/bin/goss

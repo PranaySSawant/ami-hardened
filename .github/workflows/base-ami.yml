@@ -8,6 +8,9 @@ on:
       region:
         description: "Build region"
         default: "ap-south-1"
+      arch:
+        description: "amd64, arm64 (Graviton) or both"
+        default: "both"
       from_ami:
         description: "Optional: copy this existing hardened AMI as the base instead of building (bootstrap)"
         default: ""
@@ -16,10 +19,14 @@ permissions:
   id-token: write
   contents: read
 
-concurrency: ami-build
 
 jobs:
   base:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON((github.event.inputs.arch == 'amd64' && '["amd64"]') || (github.event.inputs.arch == 'arm64' && '["arm64"]') || '["amd64","arm64"]') }}
+    concurrency: ami-build-${{ matrix.arch }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
@@ -33,6 +40,8 @@ jobs:
       - name: Install Ansible
         run: pipx install --include-deps ansible-core
       - name: Build private base image
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           if [ -n "${{ github.event.inputs.from_ami }}" ]; then
             bash scripts/make-base-ami.sh "${{ github.event.inputs.region || 'ap-south-1' }}" --from-ami "${{ github.event.inputs.from_ami }}"

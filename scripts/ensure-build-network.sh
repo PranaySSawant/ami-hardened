@@ -39,9 +39,10 @@ if [[ "$IGW" != igw-* ]]; then
 fi
 
 # Subnet in the first AZ that offers the build instance type
-AZ=$(aws ec2 describe-instance-type-offerings --region "$R" --location-type availability-zone \
-  --filters Name=instance-type,Values="${BUILD_INSTANCE_TYPE:-c7i.xlarge}" \
-  --query 'InstanceTypeOfferings[].Location' --output text | tr '\t' '\n' | sort | head -1)
+# (must offer both the x86 and the Graviton build types)
+AZ=$(for t in c7i.2xlarge c7g.2xlarge; do aws ec2 describe-instance-type-offerings --region "$R" --location-type availability-zone \
+  --filters Name=instance-type,Values="$t" --query 'InstanceTypeOfferings[].Location' --output text | tr '\t' '\n' | sort -u; done \
+  | sort | uniq -d | head -1)
 AZ=${AZ:-${R}a}
 SUB=$(aws ec2 create-subnet --region "$R" --vpc-id "$VPC" --cidr-block $CIDR --availability-zone "$AZ" \
   --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=$TAG}]" \

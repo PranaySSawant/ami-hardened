@@ -9,6 +9,9 @@ on:
       region:
         description: "Build region"
         default: "ap-south-1"
+      arch:
+        description: "amd64, arm64 (Graviton) or both"
+        default: "both"
       extra_regions:
         description: "Space-separated regions to copy to (blank = none)"
         default: ""
@@ -17,10 +20,14 @@ permissions:
   id-token: write
   contents: read
 
-concurrency: ami-build
 
 jobs:
   public-ami:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON((github.event.inputs.arch == 'amd64' && '["amd64"]') || (github.event.inputs.arch == 'arm64' && '["arm64"]') || '["amd64","arm64"]') }}
+    concurrency: ami-build-${{ matrix.arch }}
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -33,6 +40,8 @@ jobs:
           role-duration-seconds: 18000
       - uses: hashicorp/setup-packer@main
       - name: Build and make public
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           bash scripts/make-public-ami.sh \
             "${{ github.event.inputs.region || 'ap-south-1' }}" \
