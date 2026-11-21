@@ -135,6 +135,11 @@ build {
 
   # 4. Marketplace hygiene (MUST be last)
   provisioner "shell" {
+    script          = "scripts/97-zero-findings.sh"
+    execute_command = "sudo -E bash '{{ .Path }}'"
+  }
+
+  provisioner "shell" {
     script          = "scripts/98-slim.sh"
     execute_command = "sudo -E bash '{{ .Path }}'"
   }

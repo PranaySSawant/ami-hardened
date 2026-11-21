@@ -60,6 +60,13 @@ mkdir -p /run/sshd
 TK=$(mktemp -d); ssh-keygen -q -t ed25519 -N '' -f "$TK/k"
 /usr/sbin/sshd -t -h "$TK/k"
 rm -rf "$TK"
+# switch the running listener to the new sshd now (open sessions stay connected), so the next
+# connections - including the build tool's own - use the upstream binary
+if [ -d /run/systemd/system ] && ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1; then
+  systemctl stop ssh.socket 2>/dev/null || true
+  systemctl restart ssh.service
+  sleep 2; systemctl is-active ssh.service
+fi
 ssh -V 2>&1 | grep -q "OpenSSH_${OPENSSH_VER}" || { echo "ssh is not ${OPENSSH_VER}"; exit 1; }
 
 ############################ 2. SSM Agent (latest Go) ##########################

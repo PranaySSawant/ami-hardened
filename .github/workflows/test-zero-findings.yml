@@ -14,8 +14,9 @@ jobs:
           dpkg-query -W amazon-ssm-agent
       - name: Run scripts/97-zero-findings.sh
         run: sudo bash scripts/97-zero-findings.sh
-      - name: Smoke test - real SSH login to upstream sshd
+      - name: Smoke test - systemd ssh.service on port 22 + real SSH login
         run: |
+          systemctl is-active ssh.service && sudo ss -ltnp | grep ':22 '
           set -x
           ssh -V; /usr/sbin/sshd -V 2>&1 | head -1 || true
           sudo ssh-keygen -A
