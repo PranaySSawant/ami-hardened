@@ -80,9 +80,12 @@ jq --arg r "$REGION" --arg a "$ARCH" --arg ami "$AMI" --arg n "$NAME" --arg d "$
 for old in $(aws ec2 describe-images --region "$REGION" --owners self --filters Name=tag:Stage,Values=public Name=architecture,Values=$AWSARCH \
              --query "Images[?ImageId!='$AMI'].ImageId" --output text); do
   snaps=$(aws ec2 describe-images --region "$REGION" --image-ids "$old" --query 'Images[0].BlockDeviceMappings[].Ebs.SnapshotId' --output text)
-  aws ec2 deregister-image --region "$REGION" --image-id "$old"
-  for s in $snaps; do aws ec2 delete-snapshot --region "$REGION" --snapshot-id "$s" || true; done
-  echo "removed previous public image $old"
+  if aws ec2 deregister-image --region "$REGION" --image-id "$old" 2>/dev/null; then
+    for s in $snaps; do aws ec2 delete-snapshot --region "$REGION" --snapshot-id "$s" || true; done
+    echo "removed previous public image $old"
+  else
+    echo "kept previous image $old (deregistration protection is on, or it is in use)"
+  fi
 done
 
 for r in "${EXTRA_REGIONS[@]}"; do
