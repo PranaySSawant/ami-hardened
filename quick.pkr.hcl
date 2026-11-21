@@ -11,6 +11,7 @@ variable "region"        { default = "ap-south-1" }
 variable "instance_type" { default = "c7i.2xlarge" }  # faster compile + copy; billed per second
 variable "product_name"  { default = "ubuntu-2404-cis-l2" }
 variable "version"       { default = "1.0.0" }
+variable "source_ami"    { type = string }   # last public build or monthly base
 
 locals { ts = formatdate("YYYYMMDD-hhmm", timestamp()) }
 
@@ -21,12 +22,7 @@ source "amazon-ebs" "quick" {
   ssh_timeout   = "10m"
   temporary_key_pair_type = "ed25519"
 
-  source_ami_filter {
-    # newest hardened image: the last public build (or the monthly base if it is newer)
-    filters     = { "tag:Stage" = "cis-base,public", "state" = "available" }
-    owners      = ["self"]
-    most_recent = true
-  }
+  source_ami = var.source_ami   # newest hardened image, picked by scripts/make-public-ami.sh
 
   ami_name        = "${var.product_name}-${var.version}-amd64-${local.ts}"
   ami_description = "Ubuntu 24.04 LTS hardened to CIS Level 1 + Level 2 Server (v1.0.0)"

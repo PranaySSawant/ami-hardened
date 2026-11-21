@@ -19,7 +19,7 @@ BASE=$(aws ec2 describe-images --region "$REGION" --owners self --filters Name=t
 [ "$BASE" != None ] || { echo "No hardened image (tag Stage=cis-base or public). Run the 'Build BASE AMI' workflow first."; exit 1; }
 echo "==> Quick build in $REGION (v$VERSION) from base $BASE – about 10 min"
 packer init quick.pkr.hcl
-packer build -color=false -var "region=$REGION" -var "version=$VERSION" quick.pkr.hcl
+packer build -color=false -var "region=$REGION" -var "version=$VERSION" -var "source_ami=$BASE" quick.pkr.hcl
 AMI=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
 echo "==> Built $AMI"
 
