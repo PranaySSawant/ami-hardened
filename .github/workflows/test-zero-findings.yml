@@ -27,7 +27,7 @@ jobs:
           cat ~/.ssh/zf.pub >> ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys
           sudo mkdir -p /run/sshd
           sudo /usr/sbin/sshd -t
-          D=$(sudo /usr/sbin/sshd -T); grep -x 'gssapiauthentication no' <<<"$D"; grep -x 'permitrootlogin .*' <<<"$D"
+          D=$(sudo /usr/sbin/sshd -T); grep '^gssapiauthentication ' <<<"$D"; grep '^permitrootlogin ' <<<"$D"
           sudo /usr/sbin/sshd -p 2222 -o PidFile=/tmp/zf.pid -o AllowUsers=$USER
           sleep 2
           ssh -i ~/.ssh/zf -p 2222 -o StrictHostKeyChecking=no -o BatchMode=yes $USER@127.0.0.1 'echo SSH_LOGIN_OK; ssh -V'

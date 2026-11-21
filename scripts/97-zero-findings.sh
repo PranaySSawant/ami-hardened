@@ -82,8 +82,8 @@ mkdir -p /run/sshd
 TK=$(mktemp -d); ssh-keygen -q -t ed25519 -N '' -f "$TK/k"
 /usr/sbin/sshd -t -h "$TK/k"
 DUMP=$(/usr/sbin/sshd -T -h "$TK/k")    # capture first (grep -q + pipefail = SIGPIPE)
-grep -qx "permitrootlogin no" <<<"$DUMP" || { echo "sshd -T output not lowercase/compatible"; exit 1; }
-grep -qx "gssapiauthentication no" <<<"$DUMP" || { echo "GSSAPI support missing"; exit 1; }
+grep -q "^permitrootlogin " <<<"$DUMP" || { echo "sshd -T output not lowercase/compatible"; exit 1; }
+grep -q "^gssapiauthentication " <<<"$DUMP" || { echo "GSSAPI support missing"; exit 1; }
 rm -rf "$TK"
 # switch the running listener to the new sshd now (open sessions stay connected), so the next
 # connections - including the build tool's own - use the upstream binary
